@@ -1,0 +1,8 @@
+services:
+  logs-viewer:
+    build: .
+    ports:
+      - "3099:3099"
+    volumes:
+      - /home/ubuntu/.openclaw:/home/ubuntu/.openclaw:ro
+    restart: unless-stopped
