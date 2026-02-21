@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenClaw Log Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              panel: '#0f172a',
+              panelSoft: '#111827',
+              borderSoft: '#1f2937',
+              accent: '#3b82f6',
+            },
+            boxShadow: {
+              glow: '0 0 0 1px rgba(59,130,246,0.35), 0 10px 30px rgba(15,23,42,0.35)',
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+    <div class="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)]">
+      <div class="max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8">
+        <div class="rounded-2xl border border-slate-800/80 bg-slate-900/75 backdrop-blur-xl shadow-2xl overflow-hidden">
+          <div class="flex min-h-[82vh]">
+            <aside id="sidebar" class="hidden md:flex w-72 border-r border-slate-800/80 bg-slate-900/90 flex-col">
+              <div class="px-5 py-5 border-b border-slate-800">
+                <h1 class="text-lg font-semibold tracking-tight">OpenClaw Log Viewer</h1>
+                <p class="text-xs text-slate-400 mt-1">Sessions, logs, cron, and stats</p>
+              </div>
+              <nav id="nav" class="p-3 space-y-1 text-sm"></nav>
+              <div class="mt-auto p-4 border-t border-slate-800 text-xs text-slate-400">
+                Local dashboard on <span class="text-slate-200">:3099</span>
+              </div>
+            </aside>
+
+            <main class="flex-1 flex flex-col min-w-0">
+              <header class="border-b border-slate-800/80 px-4 sm:px-6 py-4 flex flex-wrap gap-3 items-center justify-between bg-slate-900/70">
+                <div class="flex items-center gap-2">
+                  <button id="mobileNavBtn" class="md:hidden px-3 py-2 rounded-lg border border-slate-700 text-xs font-medium hover:bg-slate-800 transition">Menu</button>
+                  <h2 id="viewTitle" class="text-base sm:text-lg font-semibold tracking-tight">Sessions</h2>
+                </div>
+                <div class="flex items-center gap-2 ml-auto">
+                  <input id="searchInput" type="text" placeholder="Search" class="w-48 sm:w-64 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50 transition" />
+                  <button id="refreshBtn" class="px-3 py-2 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-xs font-semibold transition shadow-glow">Refresh</button>
+                  <button id="autoRefreshBtn" class="px-3 py-2 rounded-lg border border-slate-700 text-xs font-semibold hover:bg-slate-800 transition">Auto: Off</button>
+                </div>
+              </header>
+
+              <section class="flex-1 overflow-hidden">
+                <div id="content" class="h-full overflow-auto p-4 sm:p-6"></div>
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const NAV_ITEMS = [
+        { id: 'sessions', label: 'Sessions' },
+        { id: 'commands', label: 'Commands' },
+        { id: 'config', label: 'Config Audit' },
+        { id: 'cron', label: 'Cron' },
+        { id: 'stats', label: 'Stats' },
+      ];
+
+      const state = {
+        view: 'sessions',
+        sessions: [],
+        selectedSession: null,
+        sessionData: null,
+        commands: [],
+        configEvents: [],
+        cronRuns: [],
+        stats: null,
+        filter: '',
+        autoRefresh: false,
+        timer: null,
+      };
+
+      const el = {
+        nav: document.getElementById('nav'),
+        content: document.getElementById('content'),
+        title: document.getElementById('viewTitle'),
+        search: document.getElementById('searchInput'),
+        refresh: document.getElementById('refreshBtn'),
+        autoRefresh: document.getElementById('autoRefreshBtn'),
+        sidebar: document.getElementById('sidebar'),
+        mobileNavBtn: document.getElementById('mobileNavBtn'),
+      };
+
+      function fmtDate(value) {
+        if (!value) return '-';
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return String(value);
+        return dt.toLocaleString();
+      }
+
+      function fmtNum(n) {
+        return Number(n || 0).toLocaleString();
+      }
+
+      function fmtCost(n) {
+        return `$${Number(n || 0).toFixed(4)}`;
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function pretty(value) {
+        if (value == null) return '';
+        if (typeof value === 'string') return value;
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch {
+          return String(value);
+        }
+      }
+
+      async function getJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(body || `HTTP ${res.status}`);
+        }
+        return res.json();
+      }
+
+      function navButton(item) {
+        const active = state.view === item.id;
+        return `
+          <button data-view="${item.id}" class="w-full text-left px-3 py-2.5 rounded-lg transition border ${active ? 'bg-blue-500/15 border-blue-500/40 text-blue-200' : 'border-transparent hover:border-slate-700 hover:bg-slate-800/80 text-slate-300'}">
+            ${item.label}
+          </button>
+        `;
+      }
+
+      function renderNav() {
+        el.nav.innerHTML = NAV_ITEMS.map(navButton).join('');
+        el.nav.querySelectorAll('button[data-view]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            state.view = btn.dataset.view;
+            state.filter = '';
+            el.search.value = '';
+            el.title.textContent = NAV_ITEMS.find((i) => i.id === state.view)?.label || 'Logs';
+            renderNav();
+            await loadView();
+          });
+        });
+      }
+
+      function loading(msg = 'Loading...') {
+        el.content.innerHTML = `<div class="text-sm text-slate-400 animate-pulse">${escapeHtml(msg)}</div>`;
+      }
+
+      function renderError(error) {
+        el.content.innerHTML = `
+          <div class="rounded-xl border border-red-700/40 bg-red-500/10 text-red-200 p-4 text-sm">
+            ${escapeHtml(error.message || String(error))}
+          </div>
+        `;
+      }
+
+      function renderSessionList() {
+        const q = state.filter.toLowerCase();
+        const sessions = state.sessions.filter((s) => {
+          if (!q) return true;
+          return (s.name + s.sessionId).toLowerCase().includes(q);
+        });
+
+        const rows = sessions
+          .map((s) => {
+            const activeClass = state.selectedSession === s.name ? 'ring-1 ring-blue-500 border-blue-600/50' : 'border-slate-800 hover:border-slate-700';
+            return `
+              <button data-session="${escapeHtml(s.name)}" class="w-full text-left rounded-xl border ${activeClass} bg-slate-900/70 p-3 transition">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium truncate">${escapeHtml(s.sessionId)}</div>
+                    <div class="text-xs text-slate-400 truncate mt-1">${escapeHtml(s.name)}</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] ${s.isArchived ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'}">${s.isArchived ? 'Archived' : 'Active'}</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-500">${fmtDate(s.modifiedAt)}</div>
+              </button>
+            `;
+          })
+          .join('');
+
+        const chatPane = state.sessionData ? renderSessionChat(state.sessionData) : '<div class="h-full grid place-items-center text-slate-500 text-sm">Select a session to inspect messages</div>';
+
+        el.content.innerHTML = `
+          <div class="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 h-full min-h-[68vh]">
+            <div class="space-y-2 overflow-auto pr-1">${rows || '<div class="text-slate-500 text-sm p-2">No sessions found</div>'}</div>
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/60 overflow-auto">${chatPane}</div>
+          </div>
+        `;
+
+        el.content.querySelectorAll('button[data-session]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            state.selectedSession = btn.dataset.session;
+            await loadSessionDetail(state.selectedSession);
+            renderSessionList();
+          });
+        });
+      }
+
+      function splitMessageContent(message) {
+        const content = Array.isArray(message.content) ? message.content : [];
+        const textBits = [];
+        const thinking = [];
+        const toolCalls = [];
+
+        for (const item of content) {
+          if (item?.type === 'text') textBits.push(item.text || '');
+          if (item?.type === 'thinking') thinking.push(item.thinking || '');
+          if (item?.type === 'toolCall') toolCalls.push(item);
+        }
+
+        return { text: textBits.join('\n'), thinking, toolCalls };
+      }
+
+      function usagePill(message) {
+        const usage = message.usage || {};
+        const tokens = usage.totalTokens || usage.total_tokens;
+        if (!tokens && !message?.usage?.cost?.total) return '';
+        return `
+          <span class="inline-flex px-2 py-0.5 rounded-full border border-slate-700 text-[11px] text-slate-300 bg-slate-900/80">
+            ${fmtNum(tokens)} tok${message?.usage?.cost?.total ? ` • ${fmtCost(message.usage.cost.total)}` : ''}
+          </span>
+        `;
+      }
+
+      function messageBubble(message) {
+        const role = message.role || 'unknown';
+        const isUser = role === 'user';
+        const isAssistant = role === 'assistant';
+        const isSystemLike = !isUser && !isAssistant;
+        const side = isUser ? 'items-end' : isSystemLike ? 'items-center' : 'items-start';
+        const box = isUser
+          ? 'bg-blue-600/20 border-blue-500/40 text-blue-50'
+          : isAssistant
+          ? 'bg-slate-800/70 border-slate-700 text-slate-100'
+          : 'bg-slate-900/80 border-slate-700 text-slate-300';
+
+        const { text, thinking, toolCalls } = splitMessageContent(message);
+        const toolResultText = role === 'toolResult' ? (message.content || []).map((c) => c?.text || '').join('\n') : '';
+
+        return `
+          <div class="flex ${side}">
+            <div class="max-w-[92%] rounded-xl border ${box} px-4 py-3 shadow-sm transition hover:border-slate-600/80">
+              <div class="flex items-center gap-2 text-[11px] mb-2 text-slate-400">
+                <span class="uppercase tracking-wide">${escapeHtml(role)}</span>
+                ${usagePill(message)}
+                <span>${fmtDate(message.timestamp)}</span>
+              </div>
+
+              ${text ? `<pre class="whitespace-pre-wrap break-words text-sm leading-6 font-sans">${escapeHtml(text)}</pre>` : ''}
+              ${toolResultText ? `<pre class="whitespace-pre-wrap break-words text-sm leading-6 font-sans text-emerald-200 mt-2">${escapeHtml(toolResultText)}</pre>` : ''}
+
+              ${thinking
+                .map(
+                  (t, idx) => `
+                    <details class="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2">
+                      <summary class="cursor-pointer text-xs text-amber-200">Thinking block ${idx + 1}</summary>
+                      <pre class="mt-2 text-xs whitespace-pre-wrap font-sans text-amber-100">${escapeHtml(t)}</pre>
+                    </details>
+                  `
+                )
+                .join('')}
+
+              ${toolCalls
+                .map(
+                  (tc, idx) => `
+                    <details class="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-2">
+                      <summary class="cursor-pointer text-xs text-cyan-200">Tool call ${idx + 1}: ${escapeHtml(tc.name || 'unknown')}</summary>
+                      <pre class="mt-2 text-xs whitespace-pre-wrap font-sans text-cyan-100">${escapeHtml(pretty(tc.arguments))}</pre>
+                    </details>
+                  `
+                )
+                .join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSessionChat(data) {
+        const q = state.filter.toLowerCase();
+        const messages = (data.messages || []).filter((m) => {
+          if (!q) return true;
+          return JSON.stringify(m).toLowerCase().includes(q);
+        });
+
+        const events = (data.events || [])
+          .map((ev) => `<div class="text-[11px] text-slate-500 bg-slate-900/60 border border-slate-800 rounded-lg px-2 py-1">${escapeHtml(ev.type)} • ${fmtDate(ev.timestamp)}</div>`)
+          .join('');
+
+        return `
+          <div class="p-4 space-y-3">
+            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span class="px-2 py-1 rounded border border-slate-700">${escapeHtml(data.session.name)}</span>
+              <span>${fmtNum(messages.length)} messages</span>
+            </div>
+            <div class="flex flex-wrap gap-2">${events}</div>
+            <div class="space-y-3 pt-1">${messages.map(messageBubble).join('') || '<div class="text-sm text-slate-500">No messages</div>'}</div>
+          </div>
+        `;
+      }
+
+      function renderTable(columns, rows) {
+        return `
+          <div class="overflow-auto rounded-xl border border-slate-800 bg-slate-950/70">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-900/80 text-slate-300">
+                <tr>
+                  ${columns.map((c) => `<th class="text-left font-medium px-3 py-2 border-b border-slate-800">${c}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.join('') || `<tr><td class="px-3 py-3 text-slate-500" colspan="${columns.length}">No records</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function renderCommands() {
+        const q = state.filter.toLowerCase();
+        const rows = state.commands
+          .filter((r) => !q || JSON.stringify(r).toLowerCase().includes(q))
+          .map(
+            (r) => `
+              <tr class="border-b border-slate-800/70 hover:bg-slate-900/70 transition">
+                <td class="px-3 py-2">${fmtDate(r.timestamp)}</td>
+                <td class="px-3 py-2"><span class="px-2 py-0.5 rounded border border-slate-700 bg-slate-900 text-xs">${escapeHtml(r.action || '-')}</span></td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-300">${escapeHtml(r.sessionKey || '-')}</td>
+                <td class="px-3 py-2">${escapeHtml(r.source || '-')}</td>
+              </tr>
+            `
+          );
+        el.content.innerHTML = renderTable(['Timestamp', 'Action', 'Session Key', 'Source'], rows);
+      }
+
+      function renderConfig() {
+        const q = state.filter.toLowerCase();
+        const rows = state.configEvents
+          .filter((r) => !q || JSON.stringify(r).toLowerCase().includes(q))
+          .map((r) => {
+            const suspicious = Array.isArray(r.suspicious) && r.suspicious.length > 0;
+            return `
+              <tr class="border-b border-slate-800/70 hover:bg-slate-900/70 transition ${suspicious ? 'bg-red-500/10' : ''}">
+                <td class="px-3 py-2">${fmtDate(r.ts)}</td>
+                <td class="px-3 py-2">${escapeHtml(r.event || '-')}</td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-300">${escapeHtml((r.previousHash || '-').slice(0, 14))}</td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-300">${escapeHtml((r.nextHash || '-').slice(0, 14))}</td>
+                <td class="px-3 py-2">${suspicious ? `<span class="text-red-300 font-semibold">${escapeHtml(r.suspicious.join(', '))}</span>` : '<span class="text-slate-500">none</span>'}</td>
+              </tr>
+            `;
+          });
+
+        el.content.innerHTML = renderTable(['Timestamp', 'Event', 'Previous Hash', 'Next Hash', 'Suspicious'], rows);
+      }
+
+      function renderCron() {
+        const q = state.filter.toLowerCase();
+        const cards = state.cronRuns
+          .filter((run) => !q || JSON.stringify(run).toLowerCase().includes(q))
+          .map((run) => {
+            const latest = run.latest || {};
+            return `
+              <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-slate-700 transition">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="text-sm font-semibold">${escapeHtml(run.name)}</div>
+                  <span class="text-xs px-2 py-0.5 rounded border border-slate-700 ${latest.status === 'ok' ? 'text-emerald-300 bg-emerald-500/10' : 'text-amber-300 bg-amber-500/10'}">${escapeHtml(latest.status || 'unknown')}</span>
+                </div>
+                <div class="mt-2 text-xs text-slate-400">Modified: ${fmtDate(run.modifiedAt)} • Entries: ${fmtNum((run.entries || []).length)}</div>
+                <details class="mt-3 rounded-lg border border-slate-800 bg-slate-900/60 p-2">
+                  <summary class="cursor-pointer text-xs text-slate-300">View logs</summary>
+                  <pre class="mt-2 text-xs whitespace-pre-wrap text-slate-200">${escapeHtml(pretty(run.entries))}</pre>
+                </details>
+              </div>
+            `;
+          })
+          .join('');
+
+        el.content.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${cards || '<div class="text-slate-500 text-sm">No cron runs found</div>'}</div>`;
+      }
+
+      function statCard(label, value, hint) {
+        return `
+          <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-4 hover:border-slate-700 transition">
+            <div class="text-xs uppercase tracking-wide text-slate-400">${label}</div>
+            <div class="mt-2 text-2xl font-semibold">${value}</div>
+            <div class="mt-1 text-xs text-slate-500">${hint}</div>
+          </div>
+        `;
+      }
+
+      function renderStats() {
+        if (!state.stats) {
+          el.content.innerHTML = '<div class="text-sm text-slate-500">No stats available</div>';
+          return;
+        }
+
+        el.content.innerHTML = `
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            ${statCard('Total Sessions', fmtNum(state.stats.totalSessions), `${fmtNum(state.stats.activeSessions)} active • ${fmtNum(state.stats.archivedSessions)} archived`)}
+            ${statCard('Total Messages', fmtNum(state.stats.totalMessages), 'Across all session files')}
+            ${statCard('Tokens Used', fmtNum(state.stats.tokens.total), `Input ${fmtNum(state.stats.tokens.input)} • Output ${fmtNum(state.stats.tokens.output)}`)}
+            ${statCard('Total Cost', fmtCost(state.stats.costs.total), 'Aggregated from message usage')}
+          </div>
+        `;
+      }
+
+      async function loadSessionDetail(name) {
+        state.sessionData = await getJson(`/api/sessions/${encodeURIComponent(name)}`);
+      }
+
+      async function loadView() {
+        loading();
+        try {
+          if (state.view === 'sessions') {
+            const data = await getJson('/api/sessions');
+            state.sessions = data.sessions || [];
+            if (!state.selectedSession && state.sessions.length) {
+              state.selectedSession = state.sessions[0].name;
+            }
+            if (state.selectedSession) {
+              await loadSessionDetail(state.selectedSession);
+            }
+            renderSessionList();
+            return;
+          }
+
+          if (state.view === 'commands') {
+            const data = await getJson('/api/logs/commands');
+            state.commands = data.commands || [];
+            renderCommands();
+            return;
+          }
+
+          if (state.view === 'config') {
+            const data = await getJson('/api/logs/config-audit');
+            state.configEvents = data.events || [];
+            renderConfig();
+            return;
+          }
+
+          if (state.view === 'cron') {
+            const data = await getJson('/api/cron');
+            state.cronRuns = data.runs || [];
+            renderCron();
+            return;
+          }
+
+          if (state.view === 'stats') {
+            state.stats = await getJson('/api/stats');
+            renderStats();
+            return;
+          }
+        } catch (error) {
+          renderError(error);
+        }
+      }
+
+      function updateAutoRefreshUI() {
+        el.autoRefresh.textContent = `Auto: ${state.autoRefresh ? 'On' : 'Off'}`;
+        el.autoRefresh.className = `px-3 py-2 rounded-lg border text-xs font-semibold transition ${state.autoRefresh ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-700 hover:bg-slate-800'}`;
+      }
+
+      function toggleAutoRefresh() {
+        state.autoRefresh = !state.autoRefresh;
+        updateAutoRefreshUI();
+
+        if (state.timer) {
+          clearInterval(state.timer);
+          state.timer = null;
+        }
+
+        if (state.autoRefresh) {
+          state.timer = setInterval(() => loadView(), 10000);
+        }
+      }
+
+      function setupEvents() {
+        el.refresh.addEventListener('click', loadView);
+        el.autoRefresh.addEventListener('click', toggleAutoRefresh);
+        el.search.addEventListener('input', () => {
+          state.filter = el.search.value.trim();
+          if (state.view === 'sessions') renderSessionList();
+          if (state.view === 'commands') renderCommands();
+          if (state.view === 'config') renderConfig();
+          if (state.view === 'cron') renderCron();
+          if (state.view === 'stats') renderStats();
+        });
+
+        el.mobileNavBtn.addEventListener('click', () => {
+          el.sidebar.classList.toggle('hidden');
+          el.sidebar.classList.toggle('absolute');
+          el.sidebar.classList.toggle('z-30');
+          el.sidebar.classList.toggle('h-[82vh]');
+          el.sidebar.classList.toggle('w-72');
+        });
+      }
+
+      async function init() {
+        renderNav();
+        setupEvents();
+        updateAutoRefreshUI();
+        await loadView();
+      }
+
+      init();
+    </script>
+  </body>
+</html>
