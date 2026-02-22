@@ -1,11 +1,21 @@
 # OpenClaw Log Viewer - Codex Instructions
 
 ## Project Context
-This is a log viewer for OpenClaw (an AI agent framework). Currently it's a vanilla HTML/JS app with Tailwind CDN, served by an Express backend on port 3099.
+This is a log viewer for OpenClaw (an AI agent framework). It was a vanilla HTML/JS app, now being migrated to React + Vite.
 
 Read `CONTEXT.md` for log source details and data formats.
 Read `server.js` for the existing API endpoints.
-Read `public/index.html` for the current frontend.
+Read `public/index.html` for the OLD frontend (reference only).
+
+## What's Already Done
+- All npm dependencies are installed (react 19, vite 7, tailwindcss 4, @tailwindcss/vite, ws, lucide-react, clsx, tailwind-merge, class-variance-authority, @radix-ui/react-dialog, @radix-ui/react-scroll-area, @radix-ui/react-slot, concurrently)
+- Vite config: `vite.config.js` (with React plugin, @tailwindcss/vite plugin, proxy to :3099, alias @ -> src/)
+- Entry point: `index.html` (root level, loads src/main.jsx)
+- `src/main.jsx` — React root mount
+- `src/App.jsx` — placeholder
+- `src/index.css` — Tailwind v4 import + CSS vars
+- Tailwind v4 uses CSS-based config (`@import "tailwindcss"` in CSS), NOT tailwind.config.js
+- **DO NOT run npm install** — all deps are already present. Network is unavailable in sandbox.
 
 ## Task: Major UI Refactor
 

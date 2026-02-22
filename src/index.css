@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+:root {
+  --panel: #0f172a;
+  --panel-soft: #111827;
+  --border-soft: #1f2937;
+  --accent: #3b82f6;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
