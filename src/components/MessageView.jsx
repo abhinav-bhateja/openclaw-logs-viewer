@@ -1,6 +1,80 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtCost, fmtDate, fmtNum, pretty, splitMessageContent } from '@/lib/format';
 
+function parseMarkdownCode(text) {
+  const source = text || '';
+  const blocks = [];
+  const fenceRegex = /```([\w-]+)?\n?([\s\S]*?)```/g;
+  let last = 0;
+  let match;
+
+  while ((match = fenceRegex.exec(source)) !== null) {
+    if (match.index > last) {
+      blocks.push({ type: 'text', content: source.slice(last, match.index) });
+    }
+    blocks.push({
+      type: 'code',
+      language: match[1] || '',
+      content: match[2] || '',
+    });
+    last = fenceRegex.lastIndex;
+  }
+
+  if (last < source.length) {
+    blocks.push({ type: 'text', content: source.slice(last) });
+  }
+
+  return blocks.length ? blocks : [{ type: 'text', content: source }];
+}
+
+function renderInlineCode(text, keyPrefix) {
+  const parts = text.split(/`([^`]+)`/g);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) {
+      return (
+        <code
+          key={`${keyPrefix}-inline-${index}`}
+          className="rounded border border-slate-600/70 bg-slate-900 px-1.5 py-0.5 font-mono text-[0.9em] text-slate-100"
+        >
+          {part}
+        </code>
+      );
+    }
+
+    return (
+      <span key={`${keyPrefix}-text-${index}`} className="whitespace-pre-wrap break-words">
+        {part}
+      </span>
+    );
+  });
+}
+
+function MarkdownMessage({ text, prefix, className = '' }) {
+  const blocks = parseMarkdownCode(text);
+  return (
+    <div className={`space-y-2 text-sm leading-6 ${className}`.trim()}>
+      {blocks.map((block, index) => {
+        if (block.type === 'code') {
+          return (
+            <pre
+              key={`${prefix}-code-${index}`}
+              className="overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            >
+              <code className="font-mono">{block.content}</code>
+            </pre>
+          );
+        }
+
+        return (
+          <p key={`${prefix}-text-${index}`} className="whitespace-pre-wrap break-words">
+            {renderInlineCode(block.content, `${prefix}-block-${index}`)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function usagePill(message) {
   const usage = message?.usage || {};
   const tokens = usage.totalTokens || usage.total_tokens;
@@ -22,10 +96,10 @@ function MessageBubble({ message }) {
 
   const side = isUser ? 'items-end' : isSystemLike ? 'items-center' : 'items-start';
   const box = isUser
-    ? 'bg-blue-600/20 border-blue-500/40 text-blue-50'
+    ? 'bg-blue-600/16 border-blue-500/35 text-blue-50'
     : isAssistant
-      ? 'bg-slate-800/70 border-slate-700 text-slate-100'
-      : 'bg-slate-900/80 border-slate-700 text-slate-300';
+      ? 'bg-slate-800/55 border-slate-700/80 text-slate-100'
+      : 'bg-slate-900/70 border-slate-700/80 text-slate-300';
 
   const { text, thinking, toolCalls } = splitMessageContent(message);
   const toolResultText =
@@ -37,21 +111,21 @@ function MessageBubble({ message }) {
 
   return (
     <div className={`flex ${side}`}>
-      <div
-        className={`max-w-[92%] rounded-xl border px-4 py-3 shadow-sm transition hover:border-slate-600/80 ${box}`}
-      >
+      <div className={`max-w-[92%] rounded-lg border px-3 py-2.5 ${box}`}>
         <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-400">
           <span className="uppercase tracking-wide">{role}</span>
           {usagePill(message)}
           <span>{fmtDate(message.timestamp)}</span>
         </div>
 
-        {text ? <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">{text}</pre> : null}
+        {text ? <MarkdownMessage text={text} prefix={`${message.id || message.timestamp}-msg`} /> : null}
 
         {toolResultText ? (
-          <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-emerald-200">
-            {toolResultText}
-          </pre>
+          <MarkdownMessage
+            text={toolResultText}
+            prefix={`${message.id || message.timestamp}-tool-result`}
+            className="mt-2 text-emerald-200"
+          />
         ) : null}
 
         {thinking.map((block, index) => (
@@ -86,12 +160,25 @@ export default function MessageView({ sessionData, filter }) {
   }, [filter, sessionData?.messages]);
 
   const events = sessionData?.events || [];
+  const messageCount = sessionData?.messages?.length || 0;
+  const eventCount = sessionData?.events?.length || 0;
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    setStickToBottom(true);
+    requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+  }, [sessionData?.session?.name]);
 
   useEffect(() => {
     const node = scrollRef.current;
     if (!node || !stickToBottom) return;
-    node.scrollTop = node.scrollHeight;
-  }, [stickToBottom, filteredMessages.length, events.length]);
+    requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+  }, [stickToBottom, messageCount, eventCount]);
 
   function onScroll() {
     const node = scrollRef.current;
@@ -109,13 +196,13 @@ export default function MessageView({ sessionData, filter }) {
   }
 
   return (
-    <div ref={scrollRef} onScroll={onScroll} className="h-full min-h-[68vh] overflow-auto rounded-2xl border border-slate-800 bg-slate-950/60">
-      <div className="space-y-3 p-4">
+    <div ref={scrollRef} onScroll={onScroll} className="h-full min-h-[68vh] overflow-auto">
+      <div className="space-y-3 px-1 py-1 sm:px-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span className="rounded border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
+          <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
           <span>{fmtNum(filteredMessages.length)} messages</span>
           {sessionData.parseErrors?.length ? (
-            <span className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
+            <span className="border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
               {sessionData.parseErrors.length} parse errors
             </span>
           ) : null}
@@ -125,7 +212,7 @@ export default function MessageView({ sessionData, filter }) {
           {events.map((event, idx) => (
             <div
               key={`${event.type || 'event'}-${event.timestamp || idx}`}
-              className="rounded-lg border border-slate-800 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-500"
+              className="border border-slate-800 bg-slate-900/45 px-2 py-1 text-[11px] text-slate-500"
             >
               {event.type || 'event'} • {fmtDate(event.timestamp)}
             </div>

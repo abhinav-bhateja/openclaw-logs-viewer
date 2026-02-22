@@ -6,7 +6,7 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
   }
 
   return (
-    <div className="space-y-2 overflow-auto pr-1">
+    <div className="space-y-1.5 overflow-auto pr-1">
       {sessions.map((session) => {
         const isActive = selectedSession === session.name;
         return (
@@ -14,10 +14,10 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
             key={session.name}
             type="button"
             onClick={() => onSelectSession(session.name)}
-            className={`w-full rounded-xl border bg-slate-900/70 p-3 text-left transition ${
+            className={`w-full border bg-slate-900/45 p-2.5 text-left transition ${
               isActive
-                ? 'ring-1 ring-blue-500 border-blue-600/50'
-                : 'border-slate-800 hover:border-slate-700'
+                ? 'ring-1 ring-blue-500 border-blue-600/45'
+                : 'border-slate-800/80 hover:border-slate-700'
             }`}
           >
             <div className="flex items-start justify-between gap-2">

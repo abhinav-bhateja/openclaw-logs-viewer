@@ -2,9 +2,9 @@ import { fmtCost, fmtNum } from '@/lib/format';
 
 function StatCard({ label, value, hint }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 transition hover:border-slate-700">
+    <div className="border border-slate-800/70 bg-slate-950/35 p-3 transition hover:border-slate-700">
       <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
       <div className="mt-1 text-xs text-slate-500">{hint}</div>
     </div>
   );

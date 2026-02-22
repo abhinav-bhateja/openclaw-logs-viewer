@@ -5,7 +5,7 @@ export default function ConfigAuditView({ events, filter }) {
   const rows = events.filter((row) => !q || JSON.stringify(row).toLowerCase().includes(q));
 
   return (
-    <div className="overflow-auto rounded-xl border border-slate-800 bg-slate-950/70">
+    <div className="h-full overflow-auto border border-slate-800/70 bg-slate-950/35">
       <table className="w-full text-sm">
         <thead className="bg-slate-900/80 text-slate-300">
           <tr>

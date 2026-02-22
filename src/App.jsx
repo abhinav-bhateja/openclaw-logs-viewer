@@ -242,73 +242,69 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-[1700px] p-4 sm:p-6 lg:p-8">
-        <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/75 shadow-2xl backdrop-blur-xl">
-          <div className="flex min-h-[82vh]">
-            <Sidebar
-              navItems={NAV_ITEMS}
-              activeView={view}
-              onViewChange={onViewChange}
-              sessions={visibleSessions}
-              selectedSession={selectedSession}
-              onSelectSession={onSelectSession}
-              mobileOpen={mobileOpen}
-              onCloseMobile={() => setMobileOpen(false)}
-            />
+      <div className="flex min-h-screen">
+        <Sidebar
+          navItems={NAV_ITEMS}
+          activeView={view}
+          onViewChange={onViewChange}
+          sessions={visibleSessions}
+          selectedSession={selectedSession}
+          onSelectSession={onSelectSession}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+        />
 
-            <main className="flex min-w-0 flex-1 flex-col">
-              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-900/70 px-4 py-4 sm:px-6">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMobileOpen((prev) => !prev)}
-                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium transition hover:bg-slate-800 md:hidden"
-                  >
-                    Menu
-                  </button>
-                  <h2 className="text-base font-semibold tracking-tight sm:text-lg">{title}</h2>
-                </div>
+        <main className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center gap-2 border-b border-slate-800/80 bg-slate-900/55 px-3 py-2 sm:px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileOpen((prev) => !prev)}
+                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-medium transition hover:bg-slate-800 md:hidden"
+              >
+                Menu
+              </button>
+              <h2 className="truncate text-sm font-semibold tracking-tight sm:text-base">{title}</h2>
+            </div>
 
-                <div className="ml-auto flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
-                    placeholder="Search"
-                    className="w-48 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-64"
-                  />
-                  <button
-                    type="button"
-                    onClick={refreshCurrent}
-                    className="rounded-lg bg-blue-600/90 px-3 py-2 text-xs font-semibold shadow-[0_0_0_1px_rgba(59,130,246,0.35),0_10px_30px_rgba(15,23,42,0.35)] transition hover:bg-blue-500"
-                  >
-                    Refresh
-                  </button>
-                </div>
-              </header>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <input
+                type="text"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="Search"
+                className="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2.5 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
+              />
+              <button
+                type="button"
+                onClick={refreshCurrent}
+                className="h-8 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition hover:bg-blue-500"
+              >
+                Refresh
+              </button>
+            </div>
+          </header>
 
-              <section className="flex-1 overflow-auto p-4 sm:p-6">
-                {error ? (
-                  <div className="rounded-xl border border-red-700/40 bg-red-500/10 p-4 text-sm text-red-200">
-                    {error.message || String(error)}
-                  </div>
-                ) : loading ? (
-                  <div className="text-sm text-slate-400">Loading...</div>
-                ) : view === 'sessions' ? (
-                  <MessageView sessionData={sessionData} filter={filter} />
-                ) : view === 'commands' ? (
-                  <CommandsView commands={commands} filter={filter} />
-                ) : view === 'config' ? (
-                  <ConfigAuditView events={configEvents} filter={filter} />
-                ) : view === 'cron' ? (
-                  <CronView runs={cronRuns} filter={filter} />
-                ) : (
-                  <StatsView stats={stats} />
-                )}
-              </section>
-            </main>
-          </div>
-        </div>
+          <section className="flex-1 overflow-auto px-2 py-2 sm:px-3 sm:py-3">
+            {error ? (
+              <div className="border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {error.message || String(error)}
+              </div>
+            ) : loading ? (
+              <div className="text-sm text-slate-400">Loading...</div>
+            ) : view === 'sessions' ? (
+              <MessageView sessionData={sessionData} filter={filter} />
+            ) : view === 'commands' ? (
+              <CommandsView commands={commands} filter={filter} />
+            ) : view === 'config' ? (
+              <ConfigAuditView events={configEvents} filter={filter} />
+            ) : view === 'cron' ? (
+              <CronView runs={cronRuns} filter={filter} />
+            ) : (
+              <StatsView stats={stats} />
+            )}
+          </section>
+        </main>
       </div>
     </div>
   );
