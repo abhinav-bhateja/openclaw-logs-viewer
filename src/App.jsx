@@ -1,3 +1,315 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import MessageView from '@/components/MessageView';
+import CommandsView from '@/components/CommandsView';
+import ConfigAuditView from '@/components/ConfigAuditView';
+import CronView from '@/components/CronView';
+import StatsView from '@/components/StatsView';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { mapMessageRecord } from '@/lib/format';
+
+const NAV_ITEMS = [
+  { id: 'sessions', label: 'Sessions' },
+  { id: 'commands', label: 'Commands' },
+  { id: 'config', label: 'Config Audit' },
+  { id: 'cron', label: 'Cron' },
+  { id: 'stats', label: 'Stats' },
+];
+
+function getJson(url) {
+  return fetch(url).then(async (res) => {
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(body || `HTTP ${res.status}`);
+    }
+    return res.json();
+  });
+}
+
+function parseHash(hash) {
+  const trimmed = (hash || '').replace(/^#\/?/, '');
+  if (!trimmed) return { view: 'sessions', session: null };
+
+  const [rawView, ...rest] = trimmed.split('/');
+  const view = NAV_ITEMS.some((item) => item.id === rawView) ? rawView : 'sessions';
+
+  if (view !== 'sessions') {
+    return { view, session: null };
+  }
+
+  const session = rest.length ? decodeURIComponent(rest.join('/')) : null;
+  return { view, session };
+}
+
+function toHash(view, session) {
+  if (view === 'sessions' && session) {
+    return `#/sessions/${encodeURIComponent(session)}`;
+  }
+  return `#/${view}`;
+}
+
 export default function App() {
-  return <div className="min-h-screen bg-slate-950 text-slate-100">Loading...</div>;
+  const [view, setView] = useState('sessions');
+  const [sessions, setSessions] = useState([]);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [sessionData, setSessionData] = useState(null);
+  const [commands, setCommands] = useState([]);
+  const [configEvents, setConfigEvents] = useState([]);
+  const [cronRuns, setCronRuns] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [filter, setFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const setHash = useCallback((nextView, nextSession = null) => {
+    const hash = toHash(nextView, nextSession);
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
+    }
+  }, []);
+
+  const loadSessionDetail = useCallback(async (name) => {
+    if (!name) {
+      setSessionData(null);
+      return;
+    }
+    const detail = await getJson(`/api/sessions/${encodeURIComponent(name)}`);
+    setSessionData(detail);
+  }, []);
+
+  const refreshCurrent = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const sessionsPayload = await getJson('/api/sessions');
+      const sessionRows = sessionsPayload.sessions || [];
+      setSessions(sessionRows);
+
+      const { session: routeSession } = parseHash(window.location.hash);
+      const fallbackActive = sessionRows.find((session) => !session.isArchived)?.name;
+      const fallbackAny = sessionRows[0]?.name || null;
+
+      let nextSelected = selectedSession;
+      if (routeSession && sessionRows.some((session) => session.name === routeSession)) {
+        nextSelected = routeSession;
+      }
+      if (!nextSelected || !sessionRows.some((session) => session.name === nextSelected)) {
+        nextSelected = fallbackActive || fallbackAny;
+      }
+
+      if (nextSelected !== selectedSession) {
+        setSelectedSession(nextSelected || null);
+      }
+
+      if (view === 'sessions') {
+        await loadSessionDetail(nextSelected);
+      }
+
+      if (view === 'commands') {
+        const payload = await getJson('/api/logs/commands');
+        setCommands(payload.commands || []);
+      }
+
+      if (view === 'config') {
+        const payload = await getJson('/api/logs/config-audit');
+        setConfigEvents(payload.events || []);
+      }
+
+      if (view === 'cron') {
+        const payload = await getJson('/api/cron');
+        setCronRuns(payload.runs || []);
+      }
+
+      if (view === 'stats') {
+        const payload = await getJson('/api/stats');
+        setStats(payload);
+      }
+    } catch (loadError) {
+      setError(loadError);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadSessionDetail, selectedSession, view]);
+
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+
+    const applyHash = () => {
+      const parsed = parseHash(window.location.hash);
+      setView(parsed.view);
+      if (parsed.session) {
+        setSelectedSession(parsed.session);
+      }
+    };
+
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, []);
+
+  useEffect(() => {
+    refreshCurrent();
+  }, [refreshCurrent]);
+
+  const handleWebSocketMessage = useCallback(
+    (payload) => {
+      if (!payload || !selectedSession) return;
+
+      if (payload.type === 'reset') {
+        loadSessionDetail(selectedSession).catch(() => {});
+        return;
+      }
+
+      if (payload.type !== 'line' || !payload.record) {
+        return;
+      }
+
+      setSessionData((current) => {
+        if (!current) return current;
+
+        const record = payload.record;
+        const next = {
+          ...current,
+          messages: [...(current.messages || [])],
+          events: [...(current.events || [])],
+          parseErrors: [...(current.parseErrors || [])],
+        };
+
+        if (record._parseError) {
+          next.parseErrors.push(record);
+          return next;
+        }
+
+        if (record.type === 'message' && record.message) {
+          next.messages.push(mapMessageRecord(record));
+          return next;
+        }
+
+        if (record.type === 'session') {
+          next.meta = record;
+          return next;
+        }
+
+        next.events.push(record);
+        return next;
+      });
+    },
+    [loadSessionDetail, selectedSession]
+  );
+
+  const handleWebSocketError = useCallback(() => {}, []);
+
+  useWebSocket({
+    sessionName: selectedSession,
+    enabled: Boolean(selectedSession),
+    onMessage: handleWebSocketMessage,
+    onError: handleWebSocketError,
+  });
+
+  function onViewChange(nextView) {
+    setMobileOpen(false);
+    setFilter('');
+    setView(nextView);
+    if (nextView === 'sessions') {
+      setHash('sessions', selectedSession);
+    } else {
+      setHash(nextView);
+    }
+  }
+
+  function onSelectSession(name) {
+    setMobileOpen(false);
+    setView('sessions');
+    setSelectedSession(name);
+    setHash('sessions', name);
+  }
+
+  const visibleSessions = useMemo(() => {
+    if (view !== 'sessions') {
+      return sessions;
+    }
+
+    const q = filter.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((session) => {
+      return `${session.name}${session.sessionId}`.toLowerCase().includes(q);
+    });
+  }, [filter, sessions, view]);
+
+  const title = NAV_ITEMS.find((item) => item.id === view)?.label || 'Logs';
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
+      <div className="mx-auto max-w-[1700px] p-4 sm:p-6 lg:p-8">
+        <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/75 shadow-2xl backdrop-blur-xl">
+          <div className="flex min-h-[82vh]">
+            <Sidebar
+              navItems={NAV_ITEMS}
+              activeView={view}
+              onViewChange={onViewChange}
+              sessions={visibleSessions}
+              selectedSession={selectedSession}
+              onSelectSession={onSelectSession}
+              mobileOpen={mobileOpen}
+              onCloseMobile={() => setMobileOpen(false)}
+            />
+
+            <main className="flex min-w-0 flex-1 flex-col">
+              <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-900/70 px-4 py-4 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMobileOpen((prev) => !prev)}
+                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium transition hover:bg-slate-800 md:hidden"
+                  >
+                    Menu
+                  </button>
+                  <h2 className="text-base font-semibold tracking-tight sm:text-lg">{title}</h2>
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    placeholder="Search"
+                    className="w-48 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-500/40 sm:w-64"
+                  />
+                  <button
+                    type="button"
+                    onClick={refreshCurrent}
+                    className="rounded-lg bg-blue-600/90 px-3 py-2 text-xs font-semibold shadow-[0_0_0_1px_rgba(59,130,246,0.35),0_10px_30px_rgba(15,23,42,0.35)] transition hover:bg-blue-500"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </header>
+
+              <section className="flex-1 overflow-auto p-4 sm:p-6">
+                {error ? (
+                  <div className="rounded-xl border border-red-700/40 bg-red-500/10 p-4 text-sm text-red-200">
+                    {error.message || String(error)}
+                  </div>
+                ) : loading ? (
+                  <div className="text-sm text-slate-400">Loading...</div>
+                ) : view === 'sessions' ? (
+                  <MessageView sessionData={sessionData} filter={filter} />
+                ) : view === 'commands' ? (
+                  <CommandsView commands={commands} filter={filter} />
+                ) : view === 'config' ? (
+                  <ConfigAuditView events={configEvents} filter={filter} />
+                ) : view === 'cron' ? (
+                  <CronView runs={cronRuns} filter={filter} />
+                ) : (
+                  <StatsView stats={stats} />
+                )}
+              </section>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

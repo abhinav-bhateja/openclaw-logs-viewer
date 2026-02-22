@@ -1,7 +1,10 @@
 const express = require('express');
 const fs = require('fs');
 const fsp = fs.promises;
+const http = require('http');
 const path = require('path');
+const { URL } = require('url');
+const { WebSocketServer } = require('ws');
 
 const app = express();
 const PORT = 3099;
@@ -11,8 +14,12 @@ const COMMANDS_LOG = '/home/ubuntu/.openclaw/logs/commands.log';
 const CONFIG_AUDIT_LOG = '/home/ubuntu/.openclaw/logs/config-audit.jsonl';
 const CRON_RUNS_DIR = '/home/ubuntu/.openclaw/cron/runs';
 
+const DIST_DIR = path.join(__dirname, 'dist');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const STATIC_DIR = fs.existsSync(DIST_DIR) ? DIST_DIR : PUBLIC_DIR;
+
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(STATIC_DIR));
 
 function safeJsonParse(line, file, lineNumber) {
   if (!line || !line.trim()) {
@@ -78,7 +85,7 @@ async function listSessionFiles() {
 
 async function parseSessionFileByName(fileName) {
   const available = await listSessionFiles();
-  const found = available.find((s) => s.name === fileName);
+  const found = available.find((session) => session.name === fileName);
 
   if (!found) {
     const error = new Error('Session not found');
@@ -109,7 +116,7 @@ async function parseSessionFileByName(fileName) {
     meta,
     messages,
     events: changes,
-    parseErrors: records.filter((r) => r && r._parseError),
+    parseErrors: records.filter((record) => record && record._parseError),
   };
 }
 
@@ -219,8 +226,8 @@ app.get('/api/stats', async (req, res) => {
 
     res.json({
       totalSessions: sessions.length,
-      activeSessions: sessions.filter((s) => !s.isArchived).length,
-      archivedSessions: sessions.filter((s) => s.isArchived).length,
+      activeSessions: sessions.filter((session) => !session.isArchived).length,
+      archivedSessions: sessions.filter((session) => session.isArchived).length,
       totalMessages,
       tokens: {
         input: totalInputTokens,
@@ -236,10 +243,141 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+const server = http.createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+const WS_OPEN = 1;
+
+function parseSessionNameFromUpgrade(req) {
+  const requestUrl = new URL(req.url, 'http://localhost');
+  const match = requestUrl.pathname.match(/^\/ws\/sessions\/(.+)$/);
+  if (!match) return null;
+
+  const raw = decodeURIComponent(match[1]);
+  if (!raw || raw.includes('/') || raw.includes('..')) {
+    return null;
+  }
+
+  return raw;
+}
+
+function sendWs(ws, payload) {
+  if (ws.readyState === WS_OPEN) {
+    ws.send(JSON.stringify(payload));
+  }
+}
+
+async function setupSessionStream(ws, sessionName) {
+  const sessions = await listSessionFiles();
+  const found = sessions.find((session) => session.name === sessionName);
+
+  if (!found) {
+    sendWs(ws, { type: 'error', error: 'Session not found' });
+    ws.close(1008, 'Session not found');
+    return;
+  }
+
+  const filePath = path.join(SESSIONS_DIR, found.name);
+  let offset = (await fsp.stat(filePath)).size;
+  let remainder = '';
+  let watcher = null;
+  let reading = false;
+  let rerun = false;
+
+  sendWs(ws, { type: 'ready', session: found.name });
+
+  async function emitNewLines() {
+    const stats = await fsp.stat(filePath);
+    if (stats.size < offset) {
+      offset = 0;
+      remainder = '';
+      sendWs(ws, { type: 'reset' });
+    }
+
+    if (stats.size <= offset) {
+      return;
+    }
+
+    let chunk = '';
+    await new Promise((resolve, reject) => {
+      const reader = fs.createReadStream(filePath, {
+        start: offset,
+        end: stats.size - 1,
+        encoding: 'utf8',
+      });
+
+      reader.on('data', (part) => {
+        chunk += part;
+      });
+      reader.on('error', reject);
+      reader.on('end', resolve);
+    });
+
+    offset = stats.size;
+    const combined = remainder + chunk;
+    const lines = combined.split(/\r?\n/);
+    remainder = lines.pop() || '';
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      const parsed = safeJsonParse(line, filePath, 0);
+      if (!parsed) continue;
+      sendWs(ws, { type: 'line', record: parsed });
+    }
+  }
+
+  async function pollForChanges() {
+    if (reading) {
+      rerun = true;
+      return;
+    }
+
+    reading = true;
+    try {
+      do {
+        rerun = false;
+        await emitNewLines();
+      } while (rerun);
+    } catch (error) {
+      sendWs(ws, { type: 'error', error: error.message });
+    } finally {
+      reading = false;
+    }
+  }
+
+  watcher = fs.watch(filePath, () => {
+    pollForChanges();
+  });
+
+  ws.on('close', () => {
+    if (watcher) {
+      watcher.close();
+    }
+  });
+}
+
+server.on('upgrade', (req, socket, head) => {
+  const sessionName = parseSessionNameFromUpgrade(req);
+  if (!sessionName) {
+    socket.destroy();
+    return;
+  }
+
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req, sessionName);
+  });
 });
 
-app.listen(PORT, () => {
+wss.on('connection', (ws, req, sessionName) => {
+  setupSessionStream(ws, sessionName).catch((error) => {
+    sendWs(ws, { type: 'error', error: error.message });
+    ws.close(1011, 'Stream setup failed');
+  });
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(STATIC_DIR, 'index.html'));
+});
+
+server.listen(PORT, () => {
   console.log(`OpenClaw Log Viewer running on http://localhost:${PORT}`);
 });
