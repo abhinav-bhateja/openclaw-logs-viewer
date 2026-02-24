@@ -221,7 +221,16 @@ export default function App() {
     onClose: handleWebSocketClose,
   });
 
-  // Auto-refresh session list every 15s to pick up new sessions
+  // Reload session data when tab becomes visible again (catches missed WS messages)
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && selectedSession) {
+        loadSessionDetail(selectedSession).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [selectedSession, loadSessionDetail]);
   useEffect(() => {
     const interval = setInterval(async () => {
       try {

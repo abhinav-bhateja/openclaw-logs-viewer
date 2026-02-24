@@ -283,7 +283,8 @@ async function setupSessionStream(ws, sessionName) {
   let reading = false;
   let rerun = false;
 
-  sendWs(ws, { type: 'ready', session: found.name });
+  // Send reset so client reloads all messages fresh on every connect/reconnect
+  sendWs(ws, { type: 'reset' });
 
   async function emitNewLines() {
     const stats = await fsp.stat(filePath);
