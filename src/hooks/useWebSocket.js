@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export function useWebSocket({ sessionName, enabled = true, onMessage, onError }) {
+export function useWebSocket({ sessionName, enabled = true, onMessage, onError, onOpen, onClose }) {
   const wsRef = useRef(null);
   const retryTimerRef = useRef(null);
 
@@ -17,6 +17,10 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError }
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
+      ws.onopen = () => {
+        onOpen?.();
+      };
+
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
@@ -32,6 +36,7 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError }
 
       ws.onclose = () => {
         wsRef.current = null;
+        onClose?.();
         if (!closedByCleanup) {
           retryTimerRef.current = window.setTimeout(connect, 1000);
         }
@@ -50,5 +55,5 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError }
         wsRef.current.close();
       }
     };
-  }, [enabled, sessionName, onMessage, onError]);
+  }, [enabled, sessionName, onMessage, onError, onOpen, onClose]);
 }

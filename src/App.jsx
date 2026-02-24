@@ -61,6 +61,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const setHash = useCallback((nextView, nextSession = null) => {
     const hash = toHash(nextView, nextSession);
@@ -199,14 +200,39 @@ export default function App() {
     [loadSessionDetail, selectedSession]
   );
 
-  const handleWebSocketError = useCallback(() => {}, []);
+  const handleWebSocketError = useCallback(() => {
+    setWsConnected(false);
+  }, []);
+
+  const handleWebSocketOpen = useCallback(() => {
+    setWsConnected(true);
+  }, []);
+
+  const handleWebSocketClose = useCallback(() => {
+    setWsConnected(false);
+  }, []);
 
   useWebSocket({
     sessionName: selectedSession,
     enabled: Boolean(selectedSession),
     onMessage: handleWebSocketMessage,
     onError: handleWebSocketError,
+    onOpen: handleWebSocketOpen,
+    onClose: handleWebSocketClose,
   });
+
+  // Auto-refresh session list every 15s to pick up new sessions
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const payload = await getJson('/api/sessions');
+        setSessions(payload.sessions || []);
+      } catch {
+        // silent
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   function onViewChange(nextView) {
     setMobileOpen(false);
@@ -293,7 +319,7 @@ export default function App() {
             ) : loading ? (
               <div className="text-sm text-slate-400">Loading...</div>
             ) : view === 'sessions' ? (
-              <MessageView sessionData={sessionData} filter={filter} />
+              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} />
             ) : view === 'commands' ? (
               <CommandsView commands={commands} filter={filter} />
             ) : view === 'config' ? (

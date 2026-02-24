@@ -12,11 +12,7 @@ function parseMarkdownCode(text) {
     if (match.index > last) {
       blocks.push({ type: 'text', content: source.slice(last, match.index) });
     }
-    blocks.push({
-      type: 'code',
-      language: match[1] || '',
-      content: match[2] || '',
-    });
+    blocks.push({ type: 'code', language: match[1] || '', content: match[2] || '' });
     last = fenceRegex.lastIndex;
   }
 
@@ -40,7 +36,6 @@ function renderInlineCode(text, keyPrefix) {
         </code>
       );
     }
-
     return (
       <span key={`${keyPrefix}-text-${index}`} className="whitespace-pre-wrap break-words">
         {part}
@@ -64,7 +59,6 @@ function MarkdownMessage({ text, prefix, className = '' }) {
             </pre>
           );
         }
-
         return (
           <p key={`${prefix}-text-${index}`} className="whitespace-pre-wrap break-words">
             {renderInlineCode(block.content, `${prefix}-block-${index}`)}
@@ -73,6 +67,45 @@ function MarkdownMessage({ text, prefix, className = '' }) {
       })}
     </div>
   );
+}
+
+const COLLAPSE_LINES = 6;
+
+function CollapsibleText({ text, className = '', mono = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = (text || '').split('\n');
+  const needsCollapse = lines.length > COLLAPSE_LINES;
+  const visible = needsCollapse && !expanded ? lines.slice(0, COLLAPSE_LINES).join('\n') : text;
+
+  return (
+    <div>
+      <pre className={`whitespace-pre-wrap break-words text-xs ${mono ? 'font-mono' : 'font-sans'} ${className}`}>
+        {visible}
+        {needsCollapse && !expanded ? '…' : ''}
+      </pre>
+      {needsCollapse && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1 text-[11px] text-slate-400 underline hover:text-slate-200"
+        >
+          {expanded ? `Collapse (${lines.length} lines)` : `Show full (${lines.length} lines)`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const ROLE_LABELS = {
+  user: 'You',
+  assistant: 'Stark',
+  system: 'System',
+  tool: 'Tool',
+  toolResult: 'Tool result',
+};
+
+function roleLabel(role) {
+  return ROLE_LABELS[role] || role;
 }
 
 function usagePill(message) {
@@ -88,7 +121,7 @@ function usagePill(message) {
   );
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, isLastMessage }) {
   const role = message.role || 'unknown';
   const isUser = role === 'user';
   const isAssistant = role === 'assistant';
@@ -113,7 +146,7 @@ function MessageBubble({ message }) {
     <div className={`flex ${side}`}>
       <div className={`max-w-[92%] rounded-lg border px-3 py-2.5 ${box}`}>
         <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-400">
-          <span className="uppercase tracking-wide">{role}</span>
+          <span className="font-medium uppercase tracking-wide">{roleLabel(role)}</span>
           {usagePill(message)}
           <span>{fmtDate(message.timestamp)}</span>
         </div>
@@ -121,26 +154,37 @@ function MessageBubble({ message }) {
         {text ? <MarkdownMessage text={text} prefix={`${message.id || message.timestamp}-msg`} /> : null}
 
         {toolResultText ? (
-          <MarkdownMessage
+          <CollapsibleText
             text={toolResultText}
-            prefix={`${message.id || message.timestamp}-tool-result`}
             className="mt-2 text-emerald-200"
           />
         ) : null}
 
-        {thinking.map((block, index) => (
-          <details key={`${message.id || message.timestamp}-thinking-${index}`} className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2">
-            <summary className="cursor-pointer text-xs text-amber-200">Thinking block {index + 1}</summary>
-            <pre className="mt-2 whitespace-pre-wrap font-sans text-xs text-amber-100">{block}</pre>
-          </details>
-        ))}
+        {thinking.map((block, index) => {
+          const isLast = isLastMessage && index === thinking.length - 1;
+          return (
+            <details
+              key={`${message.id || message.timestamp}-thinking-${index}`}
+              className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2"
+              open={isLast}
+            >
+              <summary className="cursor-pointer text-xs text-amber-200">
+                Thinking block {index + 1}
+              </summary>
+              <CollapsibleText text={block} className="mt-2 text-amber-100" />
+            </details>
+          );
+        })}
 
         {toolCalls.map((call, index) => (
-          <details key={`${message.id || message.timestamp}-tool-${index}`} className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-2">
+          <details
+            key={`${message.id || message.timestamp}-tool-${index}`}
+            className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-2"
+          >
             <summary className="cursor-pointer text-xs text-cyan-200">
-              Tool call {index + 1}: {call.name || 'unknown'}
+              Tool: {call.name || 'unknown'}
             </summary>
-            <pre className="mt-2 whitespace-pre-wrap font-sans text-xs text-cyan-100">{pretty(call.arguments)}</pre>
+            <CollapsibleText text={pretty(call.arguments)} className="mt-2 text-cyan-100" mono />
           </details>
         ))}
       </div>
@@ -148,9 +192,10 @@ function MessageBubble({ message }) {
   );
 }
 
-export default function MessageView({ sessionData, filter }) {
+export default function MessageView({ sessionData, filter, onRefresh, wsConnected }) {
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const [showFloating, setShowFloating] = useState(false);
 
   const filteredMessages = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -184,7 +229,17 @@ export default function MessageView({ sessionData, filter }) {
     const node = scrollRef.current;
     if (!node) return;
     const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
-    setStickToBottom(distance < 56);
+    const atBottom = distance < 56;
+    setStickToBottom(atBottom);
+    setShowFloating(!atBottom);
+  }
+
+  function jumpToBottom() {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+    setStickToBottom(true);
+    setShowFloating(false);
   }
 
   if (!sessionData) {
@@ -196,39 +251,75 @@ export default function MessageView({ sessionData, filter }) {
   }
 
   return (
-    <div ref={scrollRef} onScroll={onScroll} className="h-full min-h-[68vh] overflow-auto">
-      <div className="space-y-3 px-1 py-1 sm:px-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
-          <span>{fmtNum(filteredMessages.length)} messages</span>
-          {sessionData.parseErrors?.length ? (
-            <span className="border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
-              {sessionData.parseErrors.length} parse errors
-            </span>
-          ) : null}
-        </div>
+    <div className="relative flex h-full min-h-[68vh] flex-col">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto">
+        <div className="space-y-3 px-1 py-1 sm:px-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
+            <span>{fmtNum(filteredMessages.length)} messages</span>
+            {wsConnected && (
+              <span className="flex items-center gap-1 text-emerald-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Live
+              </span>
+            )}
+            {sessionData.parseErrors?.length ? (
+              <span className="border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
+                {sessionData.parseErrors.length} parse errors
+              </span>
+            ) : null}
+          </div>
 
-        <div className="flex flex-wrap gap-2">
-          {events.map((event, idx) => (
-            <div
-              key={`${event.type || 'event'}-${event.timestamp || idx}`}
-              className="border border-slate-800 bg-slate-900/45 px-2 py-1 text-[11px] text-slate-500"
-            >
-              {event.type || 'event'} • {fmtDate(event.timestamp)}
-            </div>
-          ))}
-        </div>
+          <div className="flex flex-wrap gap-2">
+            {events.map((event, idx) => (
+              <div
+                key={`${event.type || 'event'}-${event.timestamp || idx}`}
+                className="border border-slate-800 bg-slate-900/45 px-2 py-1 text-[11px] text-slate-500"
+              >
+                {event.type || 'event'} • {fmtDate(event.timestamp)}
+              </div>
+            ))}
+          </div>
 
-        <div className="space-y-3 pt-1">
-          {filteredMessages.length ? (
-            filteredMessages.map((message, index) => (
-              <MessageBubble key={`${message.id || message.timestamp || 'msg'}-${index}`} message={message} />
-            ))
-          ) : (
-            <div className="text-sm text-slate-500">No messages</div>
-          )}
+          <div className="space-y-3 pt-1">
+            {filteredMessages.length ? (
+              filteredMessages.map((message, index) => (
+                <MessageBubble
+                  key={`${message.id || message.timestamp || 'msg'}-${index}`}
+                  message={message}
+                  isLastMessage={index === filteredMessages.length - 1}
+                />
+              ))
+            ) : (
+              <div className="text-sm text-slate-500">No messages</div>
+            )}
+          </div>
         </div>
       </div>
+
+      {showFloating && (
+        <div className="absolute bottom-3 right-3 flex gap-2">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="rounded-md border border-blue-500/35 bg-blue-600/90 px-3 py-1.5 text-[11px] font-semibold shadow-lg backdrop-blur transition hover:bg-blue-500"
+            >
+              ⟳ Refetch
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            className="rounded-md border border-slate-600 bg-slate-800/90 px-3 py-1.5 text-[11px] font-semibold shadow-lg backdrop-blur transition hover:bg-slate-700"
+          >
+            ↓ Bottom
+          </button>
+        </div>
+      )}
     </div>
   );
 }
