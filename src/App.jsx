@@ -320,7 +320,7 @@ export default function App() {
             </div>
           </header>
 
-          <section className="flex-1 overflow-auto px-2 py-2 sm:px-3 sm:py-3">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-2 sm:px-3 sm:py-3">
             {error ? (
               <div className="border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error.message || String(error)}
