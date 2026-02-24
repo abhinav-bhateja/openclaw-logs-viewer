@@ -244,15 +244,15 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
   if (!sessionData) {
     return (
-      <div className="grid h-full min-h-[68vh] place-items-center text-sm text-slate-500">
+      <div className="grid flex-1 place-items-center text-sm text-slate-500">
         Select a session to inspect messages
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full min-h-[68vh] flex-col">
-      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-auto">
         <div className="space-y-3 px-1 py-1 sm:px-2">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>

@@ -276,8 +276,8 @@ export default function App() {
   const title = NAV_ITEMS.find((item) => item.id === view)?.label || 'Logs';
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
-      <div className="flex min-h-screen">
+    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
+      <div className="flex h-full">
         <Sidebar
           navItems={NAV_ITEMS}
           activeView={view}
@@ -289,7 +289,7 @@ export default function App() {
           onCloseMobile={() => setMobileOpen(false)}
         />
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="flex items-center gap-2 border-b border-slate-800/80 bg-slate-900/55 px-3 py-2 sm:px-4">
             <div className="flex min-w-0 items-center gap-2">
               <button
