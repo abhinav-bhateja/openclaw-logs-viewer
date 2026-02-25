@@ -307,7 +307,9 @@ export default function App() {
                 type="text"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Search"
+                placeholder="Filter log entries"
+                aria-label="Filter log entries"
+                data-testid="logs-search-input"
                 className="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2.5 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
               />
               <button
