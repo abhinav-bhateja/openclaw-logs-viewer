@@ -31,7 +31,7 @@ export default function CmdK({ sessions, selectedSession, onSelectSession, open:
   }, [open]);
 
   const filtered = sessions.filter((s) =>
-    `${s.name}${s.sessionId}`.toLowerCase().includes(query.toLowerCase())
+    `${s.name}${s.sessionId}${s.label || ''}`.toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => setCursor(0), [query]);

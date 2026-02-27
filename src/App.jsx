@@ -290,7 +290,7 @@ export default function App() {
     const q = filter.trim().toLowerCase();
     if (!q) return sessions;
     return sessions.filter((session) => {
-      return `${session.name}${session.sessionId}`.toLowerCase().includes(q);
+      return `${session.name}${session.sessionId}${session.label || ''}`.toLowerCase().includes(q);
     });
   }, [filter, sessions, view]);
 
