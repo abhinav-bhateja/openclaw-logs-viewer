@@ -1,6 +1,8 @@
-import { fmtDate, fmtNum, pretty } from '@/lib/format';
+import { fmtDate, fmtDateFull, fmtNum, pretty } from '@/lib/format';
+import { useTicker } from '@/hooks/useTicker';
 
 export default function CronView({ runs, filter }) {
+  useTicker(30_000);
   const q = filter.trim().toLowerCase();
   const filtered = runs.filter((run) => !q || JSON.stringify(run).toLowerCase().includes(q));
 
@@ -27,7 +29,7 @@ export default function CronView({ runs, filter }) {
                 </span>
               </div>
               <div className="mt-2 text-xs text-slate-400">
-                Modified: {fmtDate(run.modifiedAt)} • Entries: {fmtNum((run.entries || []).length)}
+                <span title={fmtDateFull(run.modifiedAt)}>Modified: {fmtDate(run.modifiedAt)}</span> • Entries: {fmtNum((run.entries || []).length)}
               </div>
               <details className="mt-3 border border-slate-800/80 bg-slate-900/40 p-2">
                 <summary className="cursor-pointer text-xs text-slate-300">View logs</summary>

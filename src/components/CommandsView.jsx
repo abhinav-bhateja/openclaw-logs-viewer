@@ -1,6 +1,8 @@
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtDateFull } from '@/lib/format';
+import { useTicker } from '@/hooks/useTicker';
 
 export default function CommandsView({ commands, filter }) {
+  useTicker(30_000);
   const q = filter.trim().toLowerCase();
   const rows = commands.filter((row) => !q || JSON.stringify(row).toLowerCase().includes(q));
 
@@ -19,7 +21,7 @@ export default function CommandsView({ commands, filter }) {
           {rows.length ? (
             rows.map((row, idx) => (
               <tr key={`${row.timestamp || 'row'}-${idx}`} className="border-b border-slate-800/70 transition duration-100 hover:bg-slate-900/70">
-                <td className="px-3 py-2">{fmtDate(row.timestamp)}</td>
+                <td className="px-3 py-2" title={fmtDateFull(row.timestamp)}>{fmtDate(row.timestamp)}</td>
                 <td className="px-3 py-2">
                   <span className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-xs">
                     {row.action || '-'}

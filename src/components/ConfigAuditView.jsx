@@ -1,6 +1,8 @@
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtDateFull } from '@/lib/format';
+import { useTicker } from '@/hooks/useTicker';
 
 export default function ConfigAuditView({ events, filter }) {
+  useTicker(30_000);
   const q = filter.trim().toLowerCase();
   const rows = events.filter((row) => !q || JSON.stringify(row).toLowerCase().includes(q));
 
@@ -27,7 +29,7 @@ export default function ConfigAuditView({ events, filter }) {
                     suspicious ? 'bg-red-500/10' : ''
                   }`}
                 >
-                  <td className="px-3 py-2">{fmtDate(row.ts)}</td>
+                  <td className="px-3 py-2" title={fmtDateFull(row.ts)}>{fmtDate(row.ts)}</td>
                   <td className="px-3 py-2">{row.event || '-'}</td>
                   <td className="px-3 py-2 font-mono text-xs text-slate-300">{(row.previousHash || '-').slice(0, 14)}</td>
                   <td className="px-3 py-2 font-mono text-xs text-slate-300">{(row.nextHash || '-').slice(0, 14)}</td>
