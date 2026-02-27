@@ -39,13 +39,29 @@ function parseHash(hash) {
     return { view, session: null };
   }
 
-  const session = rest.length ? decodeURIComponent(rest.join('/')) : null;
-  return { view, session };
+  const slug = rest.length ? decodeURIComponent(rest.join('/')) : null;
+  return { view, session: slug };
+}
+
+// Resolve a short slug (8-char prefix) to a full session name
+function resolveSlug(slug, sessions) {
+  if (!slug || !sessions.length) return null;
+  // Exact match first (legacy full-name URLs)
+  const exact = sessions.find((s) => s.name === slug);
+  if (exact) return exact.name;
+  // Prefix match on UUID
+  const prefix = sessions.find((s) => s.name.startsWith(slug));
+  return prefix ? prefix.name : null;
+}
+
+function sessionSlug(name) {
+  // Use first 8 chars of UUID (before first dash)
+  return (name || '').split('-')[0] || name.slice(0, 8);
 }
 
 function toHash(view, session) {
   if (view === 'sessions' && session) {
-    return `#/sessions/${encodeURIComponent(session)}`;
+    return `#/sessions/${sessionSlug(session)}`;
   }
   return `#/${view}`;
 }
@@ -94,7 +110,8 @@ export default function App() {
       const sessionRows = sessionsPayload.sessions || [];
       setSessions(sessionRows);
 
-      const { session: routeSession } = parseHash(window.location.hash);
+      const { session: routeSlug } = parseHash(window.location.hash);
+      const routeSession = resolveSlug(routeSlug, sessionRows);
       const fallbackActive = sessionRows.find((session) => !session.isArchived)?.name;
       const fallbackAny = sessionRows[0]?.name || null;
 
@@ -147,7 +164,9 @@ export default function App() {
       const parsed = parseHash(window.location.hash);
       setView(parsed.view);
       if (parsed.session) {
-        setSelectedSession(parsed.session);
+        // Will be resolved against sessions list in refreshCurrent
+        // Store slug temporarily; resolveSlug runs after sessions load
+        setSelectedSession((prev) => prev || parsed.session);
       }
     };
 
