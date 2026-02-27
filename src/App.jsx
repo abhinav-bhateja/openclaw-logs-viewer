@@ -61,6 +61,7 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
@@ -320,15 +321,22 @@ export default function App() {
                 type="text"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Search"
+                placeholder="Filter messages"
                 className="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2.5 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
               />
               <button
                 type="button"
-                onClick={refreshCurrent}
-                className="h-8 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500"
+                onClick={async () => { setRefreshing(true); await refreshCurrent(); setRefreshing(false); }}
+                disabled={refreshing}
+                className="flex h-8 items-center gap-1.5 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500 disabled:opacity-60"
               >
-                Refresh
+                {refreshing ? (
+                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                  </svg>
+                ) : null}
+                {refreshing ? 'Refreshing' : 'Refresh'}
               </button>
             </div>
           </header>
