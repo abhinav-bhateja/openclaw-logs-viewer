@@ -158,7 +158,7 @@ async function listSessionFiles() {
   const sessionFiles = entries
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((name) => name.includes('.jsonl'));
+    .filter((name) => name.endsWith('.jsonl'));
 
   const withMeta = await Promise.all(
     sessionFiles.map(async (name) => {
