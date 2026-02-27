@@ -296,7 +296,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
       <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-auto">
         <div className="space-y-3 px-1 py-1 sm:px-2">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
+            <span className="border border-slate-700 px-2 py-1" title={sessionData.session.name}>{sessionData.session.label || sessionData.session.sessionId.slice(0, 8)}</span>
             <span>{fmtNum(filteredMessages.length)} messages</span>
             {wsConnected && (
               <span className="flex items-center gap-1 text-emerald-400">
