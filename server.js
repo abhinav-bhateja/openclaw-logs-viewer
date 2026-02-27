@@ -68,6 +68,8 @@ function extractLabelFromText(text) {
     if (label.startsWith('channel:')) return 'Discord';
     return label;
   }
+  // System message (compaction, audit) — still main session
+  if (/Post-Compaction|Compaction failed|compaction/i.test(text.slice(0, 300))) return 'Main';
   return null; // will fall back to date-based label
 }
 
@@ -105,6 +107,9 @@ async function getSessionLabel(filePath, mtime) {
   } catch {
     // ignore read errors
   }
+
+  // No user message found — likely a compaction/system-only session
+  if (label === null) label = 'Main';
 
   labelCache.set(cacheKey, label);
   return label;
