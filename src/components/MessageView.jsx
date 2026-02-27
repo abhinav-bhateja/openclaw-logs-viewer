@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTicker } from '@/hooks/useTicker';
 import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
 
 function parseMarkdownCode(text) {
@@ -232,6 +233,7 @@ function MessageBubble({ message, isLastMessage }) {
 }
 
 export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting }) {
+  useTicker(30_000);
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showFloating, setShowFloating] = useState(false);

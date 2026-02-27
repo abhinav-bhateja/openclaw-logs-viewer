@@ -1,6 +1,8 @@
 import { fmtDate } from '@/lib/format';
+import { useTicker } from '@/hooks/useTicker';
 
 export default function SessionList({ sessions, selectedSession, onSelectSession }) {
+  useTicker(60_000);
   if (!sessions.length) {
     return <div className="px-3 py-2 text-xs text-slate-500">No sessions found</div>;
   }
