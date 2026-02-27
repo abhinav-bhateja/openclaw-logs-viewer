@@ -297,7 +297,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setMobileOpen((prev) => !prev)}
-                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-medium transition hover:bg-slate-800 md:hidden"
+                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
               >
                 Menu
               </button>
@@ -308,7 +308,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }); window.dispatchEvent(e); }}
-                className="hidden h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition hover:border-slate-600 hover:text-slate-300 sm:flex"
+                className="hidden h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
               >
                 <span>Jump to session</span>
                 <kbd className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">⌘K</kbd>
@@ -323,7 +323,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={refreshCurrent}
-                className="h-8 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition hover:bg-blue-500"
+                className="h-8 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500"
               >
                 Refresh
               </button>
