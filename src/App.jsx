@@ -7,6 +7,8 @@ import CronView from '@/components/CronView';
 import StatsView from '@/components/StatsView';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { mapMessageRecord } from '@/lib/format';
+import CmdK from '@/components/CmdK';
+import Skeleton from '@/components/Skeleton';
 
 const NAV_ITEMS = [
   { id: 'sessions', label: 'Sessions' },
@@ -303,6 +305,14 @@ export default function App() {
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }); window.dispatchEvent(e); }}
+                className="hidden h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition hover:border-slate-600 hover:text-slate-300 sm:flex"
+              >
+                <span>Jump to session</span>
+                <kbd className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">⌘K</kbd>
+              </button>
               <input
                 type="text"
                 value={filter}
@@ -326,7 +336,7 @@ export default function App() {
                 {error.message || String(error)}
               </div>
             ) : loading ? (
-              <div className="text-sm text-slate-400">Loading...</div>
+              <Skeleton />
             ) : view === 'sessions' ? (
               <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} />
             ) : view === 'commands' ? (
@@ -341,6 +351,7 @@ export default function App() {
           </section>
         </main>
       </div>
+      <CmdK sessions={sessions} selectedSession={selectedSession} onSelectSession={onSelectSession} />
     </div>
   );
 }

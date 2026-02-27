@@ -252,7 +252,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-auto">
         <div className="space-y-3 px-1 py-1 sm:px-2">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <span className="border border-slate-700 px-2 py-1">{sessionData.session.name}</span>
