@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fmtCost, fmtDate, fmtNum, pretty, splitMessageContent } from '@/lib/format';
+import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
 
 function parseMarkdownCode(text) {
   const source = text || '';
@@ -187,7 +187,7 @@ function MessageBubble({ message, isLastMessage }) {
         <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-400">
           <span className="font-medium uppercase tracking-wide">{roleLabel(role)}</span>
           {usagePill(message)}
-          <span>{fmtDate(message.timestamp)}</span>
+          <span title={fmtDateFull(message.timestamp)}>{fmtDate(message.timestamp)}</span>
         </div>
 
         {text ? <MarkdownMessage text={text} prefix={`${message.id || message.timestamp}-msg`} /> : null}
@@ -306,10 +306,10 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
               </span>
             )}
             {!wsConnected && wsReconnecting && (
-              <span className="flex items-center gap-1 text-amber-400">
+              <span className="flex items-center gap-1 text-slate-400">
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slate-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-500" />
                 </span>
                 Reconnecting...
               </span>

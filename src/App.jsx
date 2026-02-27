@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import MessageView from '@/components/MessageView';
 import CommandsView from '@/components/CommandsView';
@@ -64,6 +64,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const filterInputRef = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
 
@@ -151,7 +152,20 @@ export default function App() {
 
     applyHash();
     window.addEventListener('hashchange', applyHash);
-    return () => window.removeEventListener('hashchange', applyHash);
+
+    function onSlash(e) {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        filterInputRef.current?.focus();
+        filterInputRef.current?.select();
+      }
+    }
+    window.addEventListener('keydown', onSlash);
+
+    return () => {
+      window.removeEventListener('hashchange', applyHash);
+      window.removeEventListener('keydown', onSlash);
+    };
   }, []);
 
   useEffect(() => {
@@ -322,6 +336,7 @@ export default function App() {
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
                 placeholder="Filter messages"
+                ref={filterInputRef}
                 className="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 px-2.5 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
               />
               <button
