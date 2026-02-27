@@ -64,6 +64,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
 
   const setHash = useCallback((nextView, nextSession = null) => {
     const hash = toHash(nextView, nextSession);
@@ -208,10 +209,12 @@ export default function App() {
 
   const handleWebSocketOpen = useCallback(() => {
     setWsConnected(true);
+    setWsReconnecting(false);
   }, []);
 
   const handleWebSocketClose = useCallback(() => {
     setWsConnected(false);
+    setWsReconnecting(true);
   }, []);
 
   useWebSocket({
@@ -338,7 +341,7 @@ export default function App() {
             ) : loading ? (
               <Skeleton />
             ) : view === 'sessions' ? (
-              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} />
+              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} />
             ) : view === 'commands' ? (
               <CommandsView commands={commands} filter={filter} />
             ) : view === 'config' ? (

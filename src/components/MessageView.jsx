@@ -192,7 +192,7 @@ function MessageBubble({ message, isLastMessage }) {
   );
 }
 
-export default function MessageView({ sessionData, filter, onRefresh, wsConnected }) {
+export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting }) {
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showFloating, setShowFloating] = useState(false);
@@ -264,6 +264,15 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
                 Live
+              </span>
+            )}
+            {!wsConnected && wsReconnecting && (
+              <span className="flex items-center gap-1 text-amber-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                </span>
+                Reconnecting...
               </span>
             )}
             {sessionData.parseErrors?.length ? (
