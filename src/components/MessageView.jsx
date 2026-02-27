@@ -23,7 +23,8 @@ function parseMarkdownCode(text) {
   return blocks.length ? blocks : [{ type: 'text', content: source }];
 }
 
-function renderInlineCode(text, keyPrefix) {
+function renderInlineMarkdown(text, keyPrefix) {
+  // Split on inline code first, then handle bold/italic in text segments
   const parts = text.split(/`([^`]+)`/g);
   return parts.map((part, index) => {
     if (index % 2 === 1) {
@@ -36,12 +37,50 @@ function renderInlineCode(text, keyPrefix) {
         </code>
       );
     }
-    return (
-      <span key={`${keyPrefix}-text-${index}`} className="whitespace-pre-wrap break-words">
-        {part}
-      </span>
-    );
+    // Handle bold (**text**), italic (*text*), and links [text](url)
+    const segments = [];
+    const re = /(\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\((https?:\/\/[^\)]+)\))/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(part)) !== null) {
+      if (m.index > last) segments.push(<span key={`${keyPrefix}-t-${index}-${last}`} className="whitespace-pre-wrap break-words">{part.slice(last, m.index)}</span>);
+      if (m[2]) segments.push(<strong key={`${keyPrefix}-b-${index}-${m.index}`} className="font-semibold text-slate-100">{m[2]}</strong>);
+      else if (m[3]) segments.push(<em key={`${keyPrefix}-i-${index}-${m.index}`} className="italic text-slate-200">{m[3]}</em>);
+      else if (m[4]) segments.push(<a key={`${keyPrefix}-a-${index}-${m.index}`} href={m[5]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">{m[4]}</a>);
+      last = re.lastIndex;
+    }
+    if (last < part.length) segments.push(<span key={`${keyPrefix}-t-${index}-${last}`} className="whitespace-pre-wrap break-words">{part.slice(last)}</span>);
+    return segments.length ? segments : <span key={`${keyPrefix}-text-${index}`} className="whitespace-pre-wrap break-words">{part}</span>;
   });
+}
+
+function CodeBlock({ content, language }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <div className="group relative overflow-hidden rounded-md border border-slate-700/80 bg-slate-950">
+      {language && (
+        <div className="border-b border-slate-800 px-3 py-1 text-[10px] text-slate-500">{language}</div>
+      )}
+      <pre className="no-scrollbar overflow-x-auto px-3 py-2 text-xs text-slate-100">
+        <code className="font-mono">{content}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={copy}
+        className="absolute right-2 top-2 rounded border border-slate-700 bg-slate-900/90 px-2 py-0.5 text-[10px] text-slate-400 opacity-0 transition duration-100 group-hover:opacity-100 hover:text-slate-200"
+      >
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+    </div>
+  );
 }
 
 function MarkdownMessage({ text, prefix, className = '' }) {
@@ -61,7 +100,7 @@ function MarkdownMessage({ text, prefix, className = '' }) {
         }
         return (
           <p key={`${prefix}-text-${index}`} className="whitespace-pre-wrap break-words">
-            {renderInlineCode(block.content, `${prefix}-block-${index}`)}
+            {renderInlineMarkdown(block.content, `${prefix}-block-${index}`)}
           </p>
         );
       })}
@@ -156,7 +195,7 @@ function MessageBubble({ message, isLastMessage }) {
         {toolResultText ? (
           <CollapsibleText
             text={toolResultText}
-            className="mt-2 text-emerald-200"
+            className="mt-2 text-slate-300"
           />
         ) : null}
 
