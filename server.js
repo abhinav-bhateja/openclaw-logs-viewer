@@ -140,6 +140,19 @@ function getSessionMeta(name, stats) {
   };
 }
 
+async function countMessages(filePath) {
+  try {
+    const content = await fsp.readFile(filePath, 'utf8');
+    let count = 0;
+    for (const line of content.split('\n')) {
+      if (line.includes('"type":"message"') || line.includes('"type": "message"')) count++;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
 async function listSessionFiles() {
   const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
   const sessionFiles = entries
@@ -152,7 +165,10 @@ async function listSessionFiles() {
       const fullPath = path.join(SESSIONS_DIR, name);
       const stats = await fsp.stat(fullPath);
       const meta = getSessionMeta(name, stats);
-      meta.label = (await getSessionLabel(fullPath, stats.mtime.getTime())) || dateLabel(stats.mtime);
+      [meta.label, meta.messageCount] = await Promise.all([
+        getSessionLabel(fullPath, stats.mtime.getTime()).then((l) => l || dateLabel(stats.mtime)),
+        countMessages(fullPath),
+      ]);
       return meta;
     })
   );

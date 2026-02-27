@@ -29,6 +29,12 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
                   <span className="font-mono">{session.sessionId.slice(0, 8)}</span>
                   <span>·</span>
                   <span className="tabular-nums">{fmtDate(session.modifiedAt)}</span>
+                  {session.messageCount > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{session.messageCount}msg</span>
+                    </>
+                  )}
                 </div>
               </div>
               <span
