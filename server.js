@@ -75,12 +75,12 @@ async function getSessionLabel(filePath, mtime) {
   const cacheKey = `${filePath}:${mtime}`;
   if (labelCache.has(cacheKey)) return labelCache.get(cacheKey);
 
-  let label = 'Direct';
+  let label = null;
   try {
-    // Read first 6KB — enough to find the first user message
+    // Read first 8KB — enough to find the first user message
     const fd = await fsp.open(filePath, 'r');
-    const buf = Buffer.alloc(6144);
-    const { bytesRead } = await fd.read(buf, 0, 6144, 0);
+    const buf = Buffer.alloc(8192);
+    const { bytesRead } = await fd.read(buf, 0, 8192, 0);
     await fd.close();
     const chunk = buf.slice(0, bytesRead).toString('utf8');
     const lines = chunk.split('\n');
@@ -91,10 +91,12 @@ async function getSessionLabel(filePath, mtime) {
       if (rec.type !== 'message') continue;
       const msg = rec.message || {};
       if (msg.role !== 'user') continue;
+      // Extract decoded text from content array
       const content = Array.isArray(msg.content) ? msg.content : [];
-      for (const c of content) {
-        if (c && c.type === 'text' && c.text) {
-          label = extractLabelFromText(c.text) || 'Direct';
+      for (const item of content) {
+        if (item && item.type === 'text' && item.text) {
+          // item.text is already decoded — regex works correctly here
+          label = extractLabelFromText(item.text);
           break;
         }
       }
