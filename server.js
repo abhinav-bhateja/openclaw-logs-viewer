@@ -57,7 +57,7 @@ function extractLabelFromText(text) {
   const cronMatch = text.match(/^\[cron:[^\s]+ ([^\]]+)\]/);
   if (cronMatch) return `⏰ ${cronMatch[1]}`;
   // New/reset session (no channel)
-  if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return 'Direct';
+  if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return 'Main';
   // Extract conversation_label from JSON block
   const labelMatch = text.match(/"conversation_label"\s*:\s*"([^"]+)"/);
   if (labelMatch) {
