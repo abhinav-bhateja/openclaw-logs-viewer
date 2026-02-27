@@ -24,8 +24,8 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate text-xs font-medium">{session.sessionId}</div>
-                <div className="mt-1 truncate text-[11px] text-slate-400">{session.name}</div>
+                <div className="truncate text-xs font-medium">{session.label || session.sessionId}</div>
+                <div className="mt-1 truncate text-[11px] text-slate-400">{session.sessionId.slice(0, 8)}</div>
               </div>
               <span
                 className={`rounded-full border px-2 py-0.5 text-[11px] ${

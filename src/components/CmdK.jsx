@@ -95,8 +95,8 @@ export default function CmdK({ sessions, selectedSession, onSelectSession }) {
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <div className="text-xs font-medium">{s.sessionId}</div>
-              <div className="mt-0.5 text-[11px] text-slate-400">{s.name}</div>
+              <div className="text-xs font-medium">{s.label || s.sessionId}</div>
+              <div className="mt-0.5 text-[11px] text-slate-400">{s.sessionId.slice(0, 8)}</div>
             </button>
           ))}
         </div>

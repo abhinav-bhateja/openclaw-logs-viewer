@@ -46,6 +46,69 @@ async function parseJsonlFile(filePath) {
     .map((line, index) => safeJsonParse(line, filePath, index + 1))
     .filter(Boolean);
 }
+// In-memory label cache: "filename:mtime" -> label string
+const labelCache = new Map();
+
+function extractLabelFromText(text) {
+  if (!text) return null;
+  // Heartbeat
+  if (/heartbeat/i.test(text.slice(0, 200))) return 'Heartbeat';
+  // Cron job: [cron:id job-name]
+  const cronMatch = text.match(/^\[cron:[^\s]+ ([^\]]+)\]/);
+  if (cronMatch) return `⏰ ${cronMatch[1]}`;
+  // New/reset session (no channel)
+  if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return 'Direct';
+  // Extract conversation_label from JSON block
+  const labelMatch = text.match(/"conversation_label"\s*:\s*"([^"]+)"/);
+  if (labelMatch) {
+    const label = labelMatch[1];
+    const guildMatch = label.match(/Guild (#[^\s]+)/);
+    if (guildMatch) return guildMatch[1];
+    if (label.startsWith('telegram:')) return 'Telegram';
+    if (label.startsWith('channel:')) return 'Discord';
+    return label;
+  }
+  return 'Direct';
+}
+
+async function getSessionLabel(filePath, mtime) {
+  const cacheKey = `${filePath}:${mtime}`;
+  if (labelCache.has(cacheKey)) return labelCache.get(cacheKey);
+
+  let label = 'Direct';
+  try {
+    // Read first 6KB — enough to find the first user message
+    const fd = await fsp.open(filePath, 'r');
+    const buf = Buffer.alloc(6144);
+    const { bytesRead } = await fd.read(buf, 0, 6144, 0);
+    await fd.close();
+    const chunk = buf.slice(0, bytesRead).toString('utf8');
+    const lines = chunk.split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let rec;
+      try { rec = JSON.parse(line); } catch { continue; }
+      if (rec.type !== 'message') continue;
+      const msg = rec.message || {};
+      if (msg.role !== 'user') continue;
+      const content = Array.isArray(msg.content) ? msg.content : [];
+      for (const c of content) {
+        if (c && c.type === 'text' && c.text) {
+          label = extractLabelFromText(c.text) || 'Direct';
+          break;
+        }
+      }
+      break;
+    }
+  } catch {
+    // ignore read errors
+  }
+
+  labelCache.set(cacheKey, label);
+  return label;
+}
+
+
 
 function getSessionMeta(name, stats) {
   const isArchived = name.includes('.reset.');
@@ -76,7 +139,9 @@ async function listSessionFiles() {
     sessionFiles.map(async (name) => {
       const fullPath = path.join(SESSIONS_DIR, name);
       const stats = await fsp.stat(fullPath);
-      return getSessionMeta(name, stats);
+      const meta = getSessionMeta(name, stats);
+      meta.label = await getSessionLabel(fullPath, stats.mtime.getTime());
+      return meta;
     })
   );
 
