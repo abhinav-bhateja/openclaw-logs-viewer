@@ -185,10 +185,12 @@ function MessageBubble({ message, isLastMessage }) {
   return (
     <div className={`flex ${side}`}>
       <div className={`max-w-[92%] rounded-lg border px-3 py-2.5 ${box}`}>
-        <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-400">
-          <span className="font-medium uppercase tracking-wide">{roleLabel(role)}</span>
-          {usagePill(message)}
-          <span title={fmtDateFull(message.timestamp)}>{fmtDate(message.timestamp)}</span>
+        <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="font-medium uppercase tracking-wide">{roleLabel(role)}</span>
+            {usagePill(message)}
+          </div>
+          <span className="shrink-0 tabular-nums" title={fmtDateFull(message.timestamp)}>{fmtDate(message.timestamp)}</span>
         </div>
 
         {text ? <MarkdownMessage text={text} prefix={`${message.id || message.timestamp}-msg`} /> : null}

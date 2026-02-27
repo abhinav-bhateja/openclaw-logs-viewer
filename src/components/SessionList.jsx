@@ -23,21 +23,24 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
             }`}
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium">{session.label || session.sessionId}</div>
-                <div className="mt-1 truncate text-[11px] text-slate-400">{session.sessionId.slice(0, 8)}</div>
+                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
+                  <span className="font-mono">{session.sessionId.slice(0, 8)}</span>
+                  <span>·</span>
+                  <span className="tabular-nums">{fmtDate(session.modifiedAt)}</span>
+                </div>
               </div>
               <span
-                className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                className={`mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] ${
                   session.isArchived
-                    ? 'border-amber-400/30 bg-amber-500/20 text-amber-300'
-                    : 'border-emerald-400/30 bg-emerald-500/20 text-emerald-300'
+                    ? 'border-slate-700 text-slate-500'
+                    : 'border-emerald-400/30 text-emerald-400'
                 }`}
               >
-                {session.isArchived ? 'Archived' : 'Active'}
+                {session.isArchived ? 'arch' : '●'}
               </span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-500">{fmtDate(session.modifiedAt)}</div>
           </button>
         );
       })}
