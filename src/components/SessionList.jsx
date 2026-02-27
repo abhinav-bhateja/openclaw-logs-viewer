@@ -8,7 +8,7 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
   }
 
   return (
-    <div className="no-scrollbar space-y-1.5 overflow-auto pr-1">
+    <div className="no-scrollbar h-full space-y-1.5 overflow-auto pr-1">
       {sessions.map((session) => {
         const isActive = selectedSession === session.name;
         return (

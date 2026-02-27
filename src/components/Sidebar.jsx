@@ -57,7 +57,7 @@ export default function Sidebar({
 
         <div className="flex min-h-0 flex-1 flex-col border-t border-slate-800">
           <div className="px-3 py-2 text-xs uppercase tracking-wide text-slate-400">Sessions</div>
-          <div className="min-h-0 flex-1 px-2.5 pb-2.5">
+          <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-2.5">
             <SessionList
               sessions={sessions}
               selectedSession={selectedSession}
