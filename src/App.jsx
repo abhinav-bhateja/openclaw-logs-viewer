@@ -346,7 +346,7 @@ export default function App() {
               <div className="border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error.message || String(error)}
               </div>
-            ) : loading ? (
+            ) : (loading && sessions.length === 0) ? (
               <Skeleton />
             ) : view === 'sessions' ? (
               <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} />
