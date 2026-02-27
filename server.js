@@ -68,7 +68,7 @@ function extractLabelFromText(text) {
     if (label.startsWith('channel:')) return 'Discord';
     return label;
   }
-  return 'Direct';
+  return null; // will fall back to date-based label
 }
 
 async function getSessionLabel(filePath, mtime) {
@@ -108,6 +108,11 @@ async function getSessionLabel(filePath, mtime) {
   return label;
 }
 
+function dateLabel(mtime) {
+  const d = new Date(mtime);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 
 
 function getSessionMeta(name, stats) {
@@ -140,7 +145,7 @@ async function listSessionFiles() {
       const fullPath = path.join(SESSIONS_DIR, name);
       const stats = await fsp.stat(fullPath);
       const meta = getSessionMeta(name, stats);
-      meta.label = await getSessionLabel(fullPath, stats.mtime.getTime());
+      meta.label = (await getSessionLabel(fullPath, stats.mtime.getTime())) || dateLabel(stats.mtime);
       return meta;
     })
   );
