@@ -7,8 +7,15 @@
   --accent: #3b82f6;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
+  margin: 0;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 

@@ -316,7 +316,7 @@ export default function App() {
   const title = NAV_ITEMS.find((item) => item.id === view)?.label || 'Logs';
 
   return (
-    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
+    <div className="h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
       <div className="flex h-full">
         <Sidebar
           navItems={NAV_ITEMS}
