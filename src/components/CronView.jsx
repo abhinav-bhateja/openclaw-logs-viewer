@@ -37,7 +37,7 @@ export default function CronView({ runs, filter }) {
           );
         })
       ) : (
-        <div className="text-sm text-slate-500">No cron runs found</div>
+        <div className="text-sm text-slate-500">No runs yet</div>
       )}
     </div>
   );

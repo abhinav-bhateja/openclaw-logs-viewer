@@ -12,7 +12,7 @@ function StatCard({ label, value, hint }) {
 
 export default function StatsView({ stats }) {
   if (!stats) {
-    return <div className="text-sm text-slate-500">No stats available</div>;
+    return <div className="text-sm text-slate-500">Stats loading — run a session first</div>;
   }
 
   return (

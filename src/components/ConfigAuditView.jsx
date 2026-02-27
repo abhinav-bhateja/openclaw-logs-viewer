@@ -5,7 +5,7 @@ export default function ConfigAuditView({ events, filter }) {
   const rows = events.filter((row) => !q || JSON.stringify(row).toLowerCase().includes(q));
 
   return (
-    <div className="h-full overflow-auto border border-slate-800/70 bg-slate-950/35">
+    <div className="no-scrollbar h-full overflow-auto border border-slate-800/70 bg-slate-950/35">
       <table className="w-full text-sm">
         <thead className="bg-slate-900/80 text-slate-300">
           <tr>
@@ -23,7 +23,7 @@ export default function ConfigAuditView({ events, filter }) {
               return (
                 <tr
                   key={`${row.ts || 'row'}-${idx}`}
-                  className={`border-b border-slate-800/70 transition hover:bg-slate-900/70 ${
+                  className={`border-b border-slate-800/70 transition duration-100 hover:bg-slate-900/70 ${
                     suspicious ? 'bg-red-500/10' : ''
                   }`}
                 >
@@ -44,7 +44,7 @@ export default function ConfigAuditView({ events, filter }) {
           ) : (
             <tr>
               <td className="px-3 py-3 text-slate-500" colSpan={5}>
-                No records
+                Nothing here yet
               </td>
             </tr>
           )}
