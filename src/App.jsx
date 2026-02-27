@@ -65,6 +65,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const filterInputRef = useRef(null);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
 
@@ -325,7 +326,7 @@ export default function App() {
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }); window.dispatchEvent(e); }}
+                onClick={() => setCmdkOpen(true)}
                 className="hidden h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
               >
                 <span>Jump to session</span>
@@ -382,7 +383,7 @@ export default function App() {
           </section>
         </main>
       </div>
-      <CmdK sessions={sessions} selectedSession={selectedSession} onSelectSession={onSelectSession} />
+      <CmdK sessions={sessions} selectedSession={selectedSession} onSelectSession={onSelectSession} open={cmdkOpen} onOpenChange={setCmdkOpen} />
     </div>
   );
 }

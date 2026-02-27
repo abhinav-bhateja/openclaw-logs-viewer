@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function CmdK({ sessions, selectedSession, onSelectSession }) {
-  const [open, setOpen] = useState(false);
+export default function CmdK({ sessions, selectedSession, onSelectSession, open: openProp, onOpenChange }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = openProp !== undefined ? openProp : localOpen;
+  function setOpen(val) {
+    setLocalOpen(val);
+    onOpenChange?.(val);
+  }
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
