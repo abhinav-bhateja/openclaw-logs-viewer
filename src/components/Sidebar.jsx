@@ -1,4 +1,5 @@
 import SessionList from '@/components/SessionList';
+import Logo from '@/components/Logo';
 
 export default function Sidebar({
   navItems,
@@ -27,7 +28,10 @@ export default function Sidebar({
         }`}
       >
         <div className="border-b border-slate-800 px-4 py-3">
-          <h1 className="text-base font-semibold tracking-tight">OpenClaw Log Viewer</h1>
+          <div className="flex items-center gap-2">
+            <Logo />
+            <h1 className="text-base font-semibold tracking-tight">OpenClaw Log Viewer</h1>
+          </div>
           <p className="mt-0.5 text-xs text-slate-400">Sessions, logs, cron, and stats</p>
         </div>
 
