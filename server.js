@@ -450,13 +450,13 @@ function connectToGateway() {
       if (msg.type === 'event' && msg.event === 'connect.challenge' && !connected) {
         const nonce = msg.payload && msg.payload.nonce;
         console.log('[gateway] Got challenge, signing and connecting...');
+        // Use device token if available, fall back to gateway token
+        const authToken = (deviceAuth && deviceAuth.tokens && deviceAuth.tokens.operator && deviceAuth.tokens.operator.token) || GATEWAY_TOKEN;
         const signed = signChallenge(nonce, authToken);
         if (!signed) {
           console.log('[gateway] Failed to sign challenge');
           return;
         }
-        // Use device token if available, fall back to gateway token
-        const authToken = (deviceAuth && deviceAuth.tokens && deviceAuth.tokens.operator && deviceAuth.tokens.operator.token) || GATEWAY_TOKEN;
         ws.send(JSON.stringify({
           type: 'req',
           id: 'connect-1',
