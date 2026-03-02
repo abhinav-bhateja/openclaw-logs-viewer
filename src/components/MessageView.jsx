@@ -234,7 +234,35 @@ function MessageBubble({ message, isLastMessage }) {
   );
 }
 
-export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting }) {
+function StreamingBubble({ text }) {
+  return (
+    <div className="flex items-start">
+      <div className="max-w-[92%] rounded-lg border border-purple-500/40 bg-purple-500/8 px-3 py-2.5 text-slate-100">
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-purple-300">
+          <span className="font-medium uppercase tracking-wide">Stark</span>
+          <span className="flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-500" />
+            </span>
+            Streaming...
+          </span>
+        </div>
+        {text ? (
+          <div className="whitespace-pre-wrap break-words text-sm leading-6">{text}<span className="inline-block h-4 w-0.5 animate-pulse bg-purple-400 align-text-bottom" /></div>
+        ) : (
+          <div className="flex items-center gap-1 text-sm text-slate-400">
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: '0ms' }} />
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: '150ms' }} />
+            <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: '300ms' }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming }) {
   useTicker(30_000);
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -266,7 +294,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [stickToBottom, messageCount, eventCount]);
+  }, [stickToBottom, messageCount, eventCount, streamingText, isStreaming]);
 
   function onScroll() {
     const node = scrollRef.current;
@@ -342,12 +370,13 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                 <MessageBubble
                   key={`${message.id || message.timestamp || 'msg'}-${index}`}
                   message={message}
-                  isLastMessage={index === filteredMessages.length - 1}
+                  isLastMessage={!isStreaming && index === filteredMessages.length - 1}
                 />
               ))
             ) : (
               <div className="text-sm text-slate-500">No messages</div>
             )}
+            {isStreaming && <StreamingBubble text={streamingText} />}
           </div>
         </div>
       </div>
