@@ -392,30 +392,10 @@ function connectToGateway() {
     const ws = new WebSocket(GATEWAY_URL);
     gatewayWs = ws;
 
+    let connected = false;
+
     ws.on('open', () => {
-      console.log('[gateway] Connected to OpenClaw Gateway');
-      // Send connect handshake
-      ws.send(JSON.stringify({
-        type: 'req',
-        id: 'connect-1',
-        method: 'connect',
-        params: {
-          minProtocol: 3,
-          maxProtocol: 3,
-          client: {
-            id: 'logs-viewer',
-            version: '1.0.0',
-            platform: 'linux',
-            mode: 'operator',
-          },
-          role: 'operator',
-          scopes: ['operator.read'],
-          caps: [],
-          commands: [],
-          permissions: {},
-          auth: { token: GATEWAY_TOKEN },
-        },
-      }));
+      console.log('[gateway] Connected to OpenClaw Gateway, waiting for challenge...');
     });
 
     ws.on('message', (raw) => {
@@ -426,9 +406,45 @@ function connectToGateway() {
         return;
       }
 
-      // Log first few messages to understand the format
+      // Wait for challenge, then send connect with nonce
+      if (msg.type === 'event' && msg.event === 'connect.challenge' && !connected) {
+        const nonce = msg.payload && msg.payload.nonce;
+        console.log('[gateway] Got challenge, sending connect...');
+        ws.send(JSON.stringify({
+          type: 'req',
+          id: 'connect-1',
+          method: 'connect',
+          params: {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: 'cli',
+              version: '1.0.0',
+              platform: 'linux',
+              mode: 'operator',
+            },
+            role: 'operator',
+            scopes: ['operator.read'],
+            caps: [],
+            commands: [],
+            permissions: {},
+            auth: { token: GATEWAY_TOKEN },
+            device: {
+              id: 'logs-viewer-' + process.pid,
+              nonce: nonce,
+            },
+          },
+        }));
+        return;
+      }
+
       if (msg.type === 'res' && msg.id === 'connect-1') {
-        console.log('[gateway] Handshake response:', msg.error ? `error: ${msg.error}` : 'ok');
+        if (msg.ok) {
+          connected = true;
+          console.log('[gateway] Handshake OK — streaming enabled');
+        } else {
+          console.log('[gateway] Handshake failed:', JSON.stringify(msg.error));
+        }
         return;
       }
 
