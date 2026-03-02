@@ -384,13 +384,26 @@ const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'ws://localhost:18789';
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || 'ffae72eface986b147f67f818672b165299d6440585ae30f';
 
 // Load device identity for crypto handshake
-const IDENTITY_DIR = '/home/ubuntu/.openclaw/identity';
+// Supports env vars (for Docker) or file-based identity
 let deviceIdentity = null;
 let deviceAuth = null;
 try {
-  deviceIdentity = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device.json'), 'utf8'));
-  deviceAuth = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device-auth.json'), 'utf8'));
-  console.log('[gateway] Loaded device identity:', deviceIdentity.deviceId.slice(0, 12) + '...');
+  if (process.env.OPENCLAW_DEVICE_ID && process.env.OPENCLAW_PRIVATE_KEY) {
+    deviceIdentity = {
+      deviceId: process.env.OPENCLAW_DEVICE_ID,
+      publicKeyPem: process.env.OPENCLAW_PUBLIC_KEY,
+      privateKeyPem: process.env.OPENCLAW_PRIVATE_KEY,
+    };
+    if (process.env.OPENCLAW_DEVICE_TOKEN) {
+      deviceAuth = { tokens: { operator: { token: process.env.OPENCLAW_DEVICE_TOKEN } } };
+    }
+    console.log('[gateway] Loaded device identity from env vars');
+  } else {
+    const IDENTITY_DIR = '/home/ubuntu/.openclaw/identity';
+    deviceIdentity = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device.json'), 'utf8'));
+    deviceAuth = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device-auth.json'), 'utf8'));
+    console.log('[gateway] Loaded device identity from files');
+  }
 } catch (e) {
   console.log('[gateway] Warning: could not load device identity:', e.message);
 }
@@ -455,7 +468,7 @@ function connectToGateway() {
               id: 'cli',
               version: '1.0.0',
               platform: 'linux',
-              mode: 'operator',
+              mode: 'cli',
             },
             role: 'operator',
             scopes: ['operator.read'],
