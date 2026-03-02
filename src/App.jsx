@@ -84,6 +84,8 @@ export default function App() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
 
   const setHash = useCallback((nextView, nextSession = null) => {
     const hash = toHash(nextView, nextSession);
@@ -201,6 +203,26 @@ export default function App() {
         return;
       }
 
+      if (payload.type === 'stream') {
+        setIsStreaming(true);
+        setStreamingText((prev) => prev + (payload.delta || ''));
+        return;
+      }
+
+      if (payload.type === 'stream_end') {
+        setIsStreaming(false);
+        setStreamingText('');
+        return;
+      }
+
+      if (payload.type === 'line' && payload.record) {
+        // A final JSONL line arrived — clear any streaming preview
+        if (payload.record.type === 'message' && payload.record.message?.role === 'assistant') {
+          setIsStreaming(false);
+          setStreamingText('');
+        }
+      }
+
       if (payload.type !== 'line' || !payload.record) {
         return;
       }
@@ -298,6 +320,8 @@ export default function App() {
     setMobileOpen(false);
     setView('sessions');
     setSelectedSession(name);
+    setStreamingText('');
+    setIsStreaming(false);
     setHash('sessions', name);
   }
 
@@ -399,7 +423,7 @@ export default function App() {
             ) : (loading && sessions.length === 0) ? (
               <Skeleton />
             ) : view === 'sessions' ? (
-              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} />
+              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} streamingText={streamingText} isStreaming={isStreaming} />
             ) : view === 'commands' ? (
               <CommandsView commands={commands} filter={filter} />
             ) : view === 'config' ? (

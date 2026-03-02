@@ -340,6 +340,202 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const WS_OPEN = 1;
 
+// Track which frontend clients are watching which sessions
+// Map<sessionName, Set<ws>>
+const sessionClients = new Map();
+
+function addSessionClient(sessionName, ws) {
+  if (!sessionClients.has(sessionName)) {
+    sessionClients.set(sessionName, new Set());
+  }
+  sessionClients.get(sessionName).add(ws);
+}
+
+function removeSessionClient(sessionName, ws) {
+  const clients = sessionClients.get(sessionName);
+  if (clients) {
+    clients.delete(ws);
+    if (clients.size === 0) sessionClients.delete(sessionName);
+  }
+}
+
+function broadcastToSession(sessionName, payload) {
+  const clients = sessionClients.get(sessionName);
+  if (!clients) return;
+  const data = JSON.stringify(payload);
+  for (const ws of clients) {
+    if (ws.readyState === WS_OPEN) ws.send(data);
+  }
+}
+
+function broadcastToAll(payload) {
+  const data = JSON.stringify(payload);
+  for (const clients of sessionClients.values()) {
+    for (const ws of clients) {
+      if (ws.readyState === WS_OPEN) ws.send(data);
+    }
+  }
+}
+
+// --- Gateway WS Client (streaming deltas) ---
+const WebSocket = require('ws');
+const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'ws://localhost:18789';
+const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || 'ffae72eface986b147f67f818672b165299d6440585ae30f';
+
+let gatewayWs = null;
+let gatewayReconnectTimer = null;
+
+function connectToGateway() {
+  if (gatewayWs) return;
+
+  try {
+    const ws = new WebSocket(GATEWAY_URL);
+    gatewayWs = ws;
+
+    ws.on('open', () => {
+      console.log('[gateway] Connected to OpenClaw Gateway');
+      // Send connect handshake
+      ws.send(JSON.stringify({
+        type: 'req',
+        id: 'connect-1',
+        method: 'connect',
+        params: {
+          minProtocol: 3,
+          maxProtocol: 3,
+          client: {
+            id: 'logs-viewer',
+            version: '1.0.0',
+            platform: 'linux',
+            mode: 'operator',
+          },
+          role: 'operator',
+          scopes: ['operator.read'],
+          caps: [],
+          commands: [],
+          permissions: {},
+          auth: { token: GATEWAY_TOKEN },
+        },
+      }));
+    });
+
+    ws.on('message', (raw) => {
+      let msg;
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+
+      // Log first few messages to understand the format
+      if (msg.type === 'res' && msg.id === 'connect-1') {
+        console.log('[gateway] Handshake response:', msg.error ? `error: ${msg.error}` : 'ok');
+        return;
+      }
+
+      if (msg.type !== 'event') return;
+
+      const event = msg.event;
+      const payload = msg.payload || {};
+
+      // Extract text delta from agent events
+      // The exact structure varies — check common patterns
+      if (event === 'agent' || event === 'chat') {
+        let delta = null;
+        let sessionKey = payload.sessionId || payload.session_id || payload.sessionKey || null;
+        let isDone = false;
+
+        // Check various payload shapes for text deltas
+        if (typeof payload.text_delta === 'string') {
+          delta = payload.text_delta;
+        } else if (typeof payload.delta === 'string') {
+          delta = payload.delta;
+        } else if (typeof payload.text === 'string' && payload.type === 'text_delta') {
+          delta = payload.text;
+        } else if (payload.content && typeof payload.content.text === 'string' && payload.content.type === 'text_delta') {
+          delta = payload.content.text;
+        } else if (payload.type === 'content_block_delta' && payload.delta) {
+          delta = payload.delta.text || payload.delta.value || null;
+        }
+
+        // Check for stream end signals
+        if (payload.type === 'message_stop' || payload.type === 'content_block_stop' ||
+            payload.type === 'agent_end' || payload.type === 'done' || payload.done === true) {
+          isDone = true;
+        }
+
+        if (delta !== null) {
+          // If we know the session, target it; otherwise broadcast to all
+          if (sessionKey) {
+            // Try to find the matching JSONL filename
+            const matchingFile = findSessionFile(sessionKey);
+            if (matchingFile) {
+              broadcastToSession(matchingFile, { type: 'stream', delta, sessionKey });
+            } else {
+              broadcastToAll({ type: 'stream', delta, sessionKey });
+            }
+          } else {
+            broadcastToAll({ type: 'stream', delta, sessionKey: null });
+          }
+        }
+
+        if (isDone) {
+          if (sessionKey) {
+            const matchingFile = findSessionFile(sessionKey);
+            if (matchingFile) {
+              broadcastToSession(matchingFile, { type: 'stream_end', sessionKey });
+            } else {
+              broadcastToAll({ type: 'stream_end', sessionKey });
+            }
+          } else {
+            broadcastToAll({ type: 'stream_end', sessionKey: null });
+          }
+        }
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('[gateway] Disconnected from Gateway, reconnecting in 3s...');
+      gatewayWs = null;
+      scheduleGatewayReconnect();
+    });
+
+    ws.on('error', (err) => {
+      console.log('[gateway] Connection error:', err.message);
+      ws.close();
+    });
+  } catch (err) {
+    console.log('[gateway] Failed to connect:', err.message);
+    gatewayWs = null;
+    scheduleGatewayReconnect();
+  }
+}
+
+function scheduleGatewayReconnect() {
+  if (gatewayReconnectTimer) return;
+  gatewayReconnectTimer = setTimeout(() => {
+    gatewayReconnectTimer = null;
+    connectToGateway();
+  }, 3000);
+}
+
+// Simple lookup: find session JSONL file that starts with a sessionKey UUID
+const sessionFileCache = new Map(); // sessionKey -> filename
+function findSessionFile(sessionKey) {
+  if (!sessionKey) return null;
+  if (sessionFileCache.has(sessionKey)) return sessionFileCache.get(sessionKey);
+  // Can't do async lookup here; cache is populated when clients connect
+  return null;
+}
+
+function cacheSessionFile(sessionName) {
+  // Extract UUID prefix from filename (e.g. "abc123-def.jsonl" -> "abc123-def")
+  const sessionId = sessionName.split('.jsonl')[0];
+  sessionFileCache.set(sessionId, sessionName);
+  // Also cache with just first segment for partial matches
+  const prefix = sessionId.split('-')[0];
+  if (prefix) sessionFileCache.set(prefix, sessionName);
+}
+
 function parseSessionNameFromUpgrade(req) {
   const requestUrl = new URL(req.url, 'http://localhost');
   const match = requestUrl.pathname.match(/^\/ws\/sessions\/(.+)$/);
@@ -375,6 +571,10 @@ async function setupSessionStream(ws, sessionName) {
   let watcher = null;
   let reading = false;
   let rerun = false;
+
+  // Track this client for streaming broadcasts
+  addSessionClient(sessionName, ws);
+  cacheSessionFile(sessionName);
 
   // Send reset so client reloads all messages fresh on every connect/reconnect
   sendWs(ws, { type: 'reset' });
@@ -443,6 +643,7 @@ async function setupSessionStream(ws, sessionName) {
   });
 
   ws.on('close', () => {
+    removeSessionClient(sessionName, ws);
     if (watcher) {
       watcher.close();
     }
@@ -474,4 +675,6 @@ app.get('*', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`OpenClaw Log Viewer running on http://localhost:${PORT}`);
+  // Connect to Gateway for live streaming
+  connectToGateway();
 });
