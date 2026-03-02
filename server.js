@@ -379,14 +379,41 @@ function broadcastToAll(payload) {
 
 // --- Gateway WS Client (streaming deltas) ---
 const WebSocket = require('ws');
+const crypto = require('crypto');
 const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'ws://localhost:18789';
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || 'ffae72eface986b147f67f818672b165299d6440585ae30f';
+
+// Load device identity for crypto handshake
+const IDENTITY_DIR = '/home/ubuntu/.openclaw/identity';
+let deviceIdentity = null;
+let deviceAuth = null;
+try {
+  deviceIdentity = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device.json'), 'utf8'));
+  deviceAuth = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device-auth.json'), 'utf8'));
+  console.log('[gateway] Loaded device identity:', deviceIdentity.deviceId.slice(0, 12) + '...');
+} catch (e) {
+  console.log('[gateway] Warning: could not load device identity:', e.message);
+}
+
+function signChallenge(nonce) {
+  if (!deviceIdentity) return null;
+  const signedAt = Date.now();
+  const privateKey = crypto.createPrivateKey(deviceIdentity.privateKeyPem);
+  // v2 payload: deviceId + nonce + signedAt
+  const payload = `${deviceIdentity.deviceId}\n${nonce}\n${signedAt}`;
+  const signature = crypto.sign(null, Buffer.from(payload), privateKey).toString('base64');
+  return { signature, signedAt };
+}
 
 let gatewayWs = null;
 let gatewayReconnectTimer = null;
 
 function connectToGateway() {
   if (gatewayWs) return;
+  if (!deviceIdentity) {
+    console.log('[gateway] No device identity — skipping gateway connection');
+    return;
+  }
 
   try {
     const ws = new WebSocket(GATEWAY_URL);
@@ -406,10 +433,17 @@ function connectToGateway() {
         return;
       }
 
-      // Wait for challenge, then send connect with nonce
+      // Wait for challenge, then send connect with signed nonce
       if (msg.type === 'event' && msg.event === 'connect.challenge' && !connected) {
         const nonce = msg.payload && msg.payload.nonce;
-        console.log('[gateway] Got challenge, sending connect...');
+        console.log('[gateway] Got challenge, signing and connecting...');
+        const signed = signChallenge(nonce);
+        if (!signed) {
+          console.log('[gateway] Failed to sign challenge');
+          return;
+        }
+        // Use device token if available, fall back to gateway token
+        const authToken = (deviceAuth && deviceAuth.tokens && deviceAuth.tokens.operator && deviceAuth.tokens.operator.token) || GATEWAY_TOKEN;
         ws.send(JSON.stringify({
           type: 'req',
           id: 'connect-1',
@@ -428,9 +462,12 @@ function connectToGateway() {
             caps: [],
             commands: [],
             permissions: {},
-            auth: { token: GATEWAY_TOKEN },
+            auth: { token: authToken },
             device: {
-              id: 'logs-viewer-' + process.pid,
+              id: deviceIdentity.deviceId,
+              publicKey: deviceIdentity.publicKeyPem,
+              signature: signed.signature,
+              signedAt: signed.signedAt,
               nonce: nonce,
             },
           },
