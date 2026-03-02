@@ -408,12 +408,12 @@ try {
   console.log('[gateway] Warning: could not load device identity:', e.message);
 }
 
-function signChallenge(nonce) {
+function signChallenge(nonce, authToken) {
   if (!deviceIdentity) return null;
   const signedAt = Date.now();
   const privateKey = crypto.createPrivateKey(deviceIdentity.privateKeyPem);
-  // v2 payload: deviceId + nonce + signedAt
-  const payload = `${deviceIdentity.deviceId}\n${nonce}\n${signedAt}`;
+  // v2 payload: v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce
+  const payload = ['v2', deviceIdentity.deviceId, 'cli', 'cli', 'operator', 'operator.read', String(signedAt), authToken, nonce].join('|');
   const signature = crypto.sign(null, Buffer.from(payload), privateKey).toString('base64');
   return { signature, signedAt };
 }
@@ -450,7 +450,7 @@ function connectToGateway() {
       if (msg.type === 'event' && msg.event === 'connect.challenge' && !connected) {
         const nonce = msg.payload && msg.payload.nonce;
         console.log('[gateway] Got challenge, signing and connecting...');
-        const signed = signChallenge(nonce);
+        const signed = signChallenge(nonce, authToken);
         if (!signed) {
           console.log('[gateway] Failed to sign challenge');
           return;
