@@ -210,11 +210,35 @@ async function parseSessionFileByName(fileName) {
     (record) => record && record.type !== 'message' && record.type !== 'session'
   );
 
+  // Compute summary stats
+  let totalTokens = 0;
+  let totalCost = 0;
+  const models = new Set();
+  const timestamps = [];
+  for (const msg of messages) {
+    if (msg.timestamp) timestamps.push(new Date(msg.timestamp).getTime());
+    if (msg.usage) {
+      totalTokens += msg.usage.totalTokens || msg.usage.total_tokens || 0;
+      if (msg.usage.cost?.total) totalCost += msg.usage.cost.total;
+    }
+    if (msg.model) models.add(msg.model);
+  }
+  const startTime = timestamps.length ? Math.min(...timestamps) : null;
+  const endTime = timestamps.length ? Math.max(...timestamps) : null;
+  let duration = '';
+  if (startTime && endTime) {
+    const diffMs = endTime - startTime;
+    const mins = Math.floor(diffMs / 60000);
+    const hrs = Math.floor(mins / 60);
+    duration = hrs > 0 ? hrs + 'h ' + (mins % 60) + 'm' : mins + 'm';
+  }
+
   return {
     session: found,
     meta,
     messages,
     events: changes,
+    summary: { totalTokens, totalCost, models: [...models], duration, startTime, endTime, messageCount: messages.length },
     parseErrors: records.filter((record) => record && record._parseError),
   };
 }

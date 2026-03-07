@@ -329,6 +329,14 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <span className="border border-slate-700 px-2 py-1" title={sessionData.session.name}>{sessionData.session.label || sessionData.session.sessionId.slice(0, 8)}</span>
             <span>{fmtNum(filteredMessages.length)} messages</span>
+            {sessionData.summary?.duration && <span className="text-slate-500">·</span>}
+            {sessionData.summary?.duration && <span>{sessionData.summary.duration}</span>}
+            {sessionData.summary?.totalTokens > 0 && <span className="text-slate-500">·</span>}
+            {sessionData.summary?.totalTokens > 0 && <span>{fmtNum(sessionData.summary.totalTokens)} tok</span>}
+            {sessionData.summary?.totalCost > 0 && <span className="text-slate-500">·</span>}
+            {sessionData.summary?.totalCost > 0 && <span>{fmtCost(sessionData.summary.totalCost)}</span>}
+            {sessionData.summary?.models?.length > 0 && <span className="text-slate-500">·</span>}
+            {sessionData.summary?.models?.length > 0 && <span className="truncate max-w-[200px]">{sessionData.summary.models.join(', ')}</span>}
             {wsConnected && (
               <span className="flex items-center gap-1 text-emerald-400">
                 <span className="relative flex h-2 w-2">
