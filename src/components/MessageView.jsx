@@ -96,17 +96,14 @@ function MarkdownMessage({ text, className = '' }) {
         rehypePlugins={[rehypeHighlight]}
         components={{
           pre({ children }) {
-            return <div className="group relative">{children}</div>;
+            // Extract language and text from the code child
+            const codeEl = children?.props;
+            const lang = (codeEl?.className || '').replace('language-', '').replace('hljs ', '') || '';
+            const text = typeof codeEl?.children === 'string' ? codeEl.children : '';
+            return <CodeBlock content={text} language={lang} />;
           },
           code({ className, children, ...props }) {
-            const isBlock = className?.startsWith('language-') || className?.startsWith('hljs');
-            if (isBlock) {
-              return (
-                <pre className="overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950 px-3 py-2 text-xs">
-                  <code className={`font-mono ${className || ''}`} {...props}>{children}</code>
-                </pre>
-              );
-            }
+            if (className) return <code className={className} {...props}>{children}</code>;
             return (
               <code className="rounded border border-slate-600/70 bg-slate-900 px-1.5 py-0.5 font-mono text-[0.9em] text-slate-100" {...props}>
                 {children}
