@@ -384,13 +384,13 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                 Live
               </span>
             )}
-            {!wsConnected && wsReconnecting && (
+            {!wsConnected && sessionData?.session?.name && (
               <span className="flex items-center gap-1 text-slate-400">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slate-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-500" />
                 </span>
-                Reconnecting...
+                Connecting...
               </span>
             )}
             <div className="flex items-center gap-1">
