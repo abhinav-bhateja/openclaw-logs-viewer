@@ -260,6 +260,15 @@ app.get('/api/sessions/:id', async (req, res) => {
     }
 
     const data = await parseSessionFileByName(id);
+    // Enrich with label/channel from the list cache
+    const filePath = path.join(SESSIONS_DIR, id);
+    try {
+      const stats = await fsp.stat(filePath);
+      const labelResult = await getSessionLabel(filePath, stats.mtime.getTime());
+      data.meta = data.meta || {};
+      data.meta.label = labelResult ? labelResult.label : dateLabel(stats.mtime);
+      data.meta.channel = labelResult ? labelResult.channel : 'other';
+    } catch {}
     res.json(data);
   } catch (error) {
     const status = error.status || 500;
