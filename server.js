@@ -377,229 +377,47 @@ function broadcastToAll(payload) {
   }
 }
 
-// --- Gateway WS Client (streaming deltas) ---
-const WebSocket = require('ws');
-const crypto = require('crypto');
-const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || 'ws://localhost:18789';
-const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || 'ffae72eface986b147f67f818672b165299d6440585ae30f';
+// --- File Watcher (live session updates) ---
+const fileOffsets = new Map(); // filePath -> last known size
 
-// Load device identity for crypto handshake
-// Supports env vars (for Docker) or file-based identity
-let deviceIdentity = null;
-let deviceAuth = null;
-try {
-  if (process.env.OPENCLAW_DEVICE_ID && process.env.OPENCLAW_PRIVATE_KEY) {
-    deviceIdentity = {
-      deviceId: process.env.OPENCLAW_DEVICE_ID,
-      publicKeyPem: process.env.OPENCLAW_PUBLIC_KEY,
-      privateKeyPem: process.env.OPENCLAW_PRIVATE_KEY,
-    };
-    if (process.env.OPENCLAW_DEVICE_TOKEN) {
-      deviceAuth = { tokens: { operator: { token: process.env.OPENCLAW_DEVICE_TOKEN } } };
-    }
-    console.log('[gateway] Loaded device identity from env vars');
-  } else {
-    const IDENTITY_DIR = '/home/ubuntu/.openclaw/identity';
-    deviceIdentity = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device.json'), 'utf8'));
-    deviceAuth = JSON.parse(fs.readFileSync(path.join(IDENTITY_DIR, 'device-auth.json'), 'utf8'));
-    console.log('[gateway] Loaded device identity from files');
-  }
-} catch (e) {
-  console.log('[gateway] Warning: could not load device identity:', e.message);
-}
+function startFileWatcher() {
+  const watcher = fs.watch(SESSIONS_DIR, { persistent: false }, (eventType, filename) => {
+    if (!filename || !filename.endsWith('.jsonl')) return;
+    const filePath = path.join(SESSIONS_DIR, filename);
+    
+    // Debounce rapid changes
+    const key = `_fw_${filename}`;
+    if (watcher[key]) return;
+    watcher[key] = true;
+    setTimeout(() => { watcher[key] = false; }, 100);
 
-function signChallenge(nonce, authToken) {
-  if (!deviceIdentity) return null;
-  const signedAt = Date.now();
-  const privateKey = crypto.createPrivateKey(deviceIdentity.privateKeyPem);
-  // v2 payload: v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce
-  const payload = ['v2', deviceIdentity.deviceId, 'cli', 'cli', 'operator', 'operator.read', String(signedAt), authToken, nonce].join('|');
-  const signature = crypto.sign(null, Buffer.from(payload), privateKey).toString('base64');
-  return { signature, signedAt };
-}
-
-let gatewayWs = null;
-let gatewayReconnectTimer = null;
-
-function connectToGateway() {
-  if (gatewayWs) return;
-  if (!deviceIdentity) {
-    console.log('[gateway] No device identity — skipping gateway connection');
-    return;
-  }
-
-  try {
-    const ws = new WebSocket(GATEWAY_URL);
-    gatewayWs = ws;
-
-    let connected = false;
-
-    ws.on('open', () => {
-      console.log('[gateway] Connected to OpenClaw Gateway, waiting for challenge...');
-    });
-
-    ws.on('message', (raw) => {
-      let msg;
-      try {
-        msg = JSON.parse(raw.toString());
-      } catch {
-        return;
-      }
-
-      // Wait for challenge, then send connect with signed nonce
-      if (msg.type === 'event' && msg.event === 'connect.challenge' && !connected) {
-        const nonce = msg.payload && msg.payload.nonce;
-        console.log('[gateway] Got challenge, signing and connecting...');
-        // Use device token if available, fall back to gateway token
-        const authToken = (deviceAuth && deviceAuth.tokens && deviceAuth.tokens.operator && deviceAuth.tokens.operator.token) || GATEWAY_TOKEN;
-        const signed = signChallenge(nonce, authToken);
-        if (!signed) {
-          console.log('[gateway] Failed to sign challenge');
-          return;
+    // Read new content since last offset
+    fsp.stat(filePath).then((stats) => {
+      const lastOffset = fileOffsets.get(filePath) || 0;
+      if (stats.size <= lastOffset) return;
+      
+      const stream = fs.createReadStream(filePath, { start: lastOffset, encoding: 'utf8' });
+      let buf = '';
+      stream.on('data', (chunk) => { buf += chunk; });
+      stream.on('end', () => {
+        fileOffsets.set(filePath, stats.size);
+        const newLines = buf.split('\n').filter(Boolean);
+        const messages = [];
+        for (const line of newLines) {
+          try {
+            const item = JSON.parse(line);
+            if (item.type === 'message') messages.push(item);
+          } catch {}
         }
-        ws.send(JSON.stringify({
-          type: 'req',
-          id: 'connect-1',
-          method: 'connect',
-          params: {
-            minProtocol: 3,
-            maxProtocol: 3,
-            client: {
-              id: 'cli',
-              version: '1.0.0',
-              platform: 'linux',
-              mode: 'cli',
-            },
-            role: 'operator',
-            scopes: ['operator.read'],
-            caps: [],
-            commands: [],
-            permissions: {},
-            auth: { token: authToken },
-            device: {
-              id: deviceIdentity.deviceId,
-              publicKey: deviceIdentity.publicKeyPem,
-              signature: signed.signature,
-              signedAt: signed.signedAt,
-              nonce: nonce,
-            },
-          },
-        }));
-        return;
-      }
-
-      if (msg.type === 'res' && msg.id === 'connect-1') {
-        if (msg.ok) {
-          connected = true;
-          console.log('[gateway] Handshake OK — streaming enabled');
-        } else {
-          console.log('[gateway] Handshake failed:', JSON.stringify(msg.error));
+        if (messages.length > 0) {
+          broadcastToSession(filename, { type: 'new_messages', messages });
         }
-        return;
-      }
+      });
+    }).catch(() => {});
+  });
 
-      if (msg.type !== 'event') return;
-
-      const event = msg.event;
-      const payload = msg.payload || {};
-
-      // Extract text delta from agent events
-      // The exact structure varies — check common patterns
-      if (event === 'agent' || event === 'chat') {
-        let delta = null;
-        let sessionKey = payload.sessionId || payload.session_id || payload.sessionKey || null;
-        let isDone = false;
-
-        // Check various payload shapes for text deltas
-        if (typeof payload.text_delta === 'string') {
-          delta = payload.text_delta;
-        } else if (typeof payload.delta === 'string') {
-          delta = payload.delta;
-        } else if (typeof payload.text === 'string' && payload.type === 'text_delta') {
-          delta = payload.text;
-        } else if (payload.content && typeof payload.content.text === 'string' && payload.content.type === 'text_delta') {
-          delta = payload.content.text;
-        } else if (payload.type === 'content_block_delta' && payload.delta) {
-          delta = payload.delta.text || payload.delta.value || null;
-        }
-
-        // Check for stream end signals
-        if (payload.type === 'message_stop' || payload.type === 'content_block_stop' ||
-            payload.type === 'agent_end' || payload.type === 'done' || payload.done === true) {
-          isDone = true;
-        }
-
-        if (delta !== null) {
-          // If we know the session, target it; otherwise broadcast to all
-          if (sessionKey) {
-            // Try to find the matching JSONL filename
-            const matchingFile = findSessionFile(sessionKey);
-            if (matchingFile) {
-              broadcastToSession(matchingFile, { type: 'stream', delta, sessionKey });
-            } else {
-              broadcastToAll({ type: 'stream', delta, sessionKey });
-            }
-          } else {
-            broadcastToAll({ type: 'stream', delta, sessionKey: null });
-          }
-        }
-
-        if (isDone) {
-          if (sessionKey) {
-            const matchingFile = findSessionFile(sessionKey);
-            if (matchingFile) {
-              broadcastToSession(matchingFile, { type: 'stream_end', sessionKey });
-            } else {
-              broadcastToAll({ type: 'stream_end', sessionKey });
-            }
-          } else {
-            broadcastToAll({ type: 'stream_end', sessionKey: null });
-          }
-        }
-      }
-    });
-
-    ws.on('close', () => {
-      console.log('[gateway] Disconnected from Gateway, reconnecting in 3s...');
-      gatewayWs = null;
-      scheduleGatewayReconnect();
-    });
-
-    ws.on('error', (err) => {
-      console.log('[gateway] Connection error:', err.message);
-      ws.close();
-    });
-  } catch (err) {
-    console.log('[gateway] Failed to connect:', err.message);
-    gatewayWs = null;
-    scheduleGatewayReconnect();
-  }
-}
-
-function scheduleGatewayReconnect() {
-  if (gatewayReconnectTimer) return;
-  gatewayReconnectTimer = setTimeout(() => {
-    gatewayReconnectTimer = null;
-    connectToGateway();
-  }, 3000);
-}
-
-// Simple lookup: find session JSONL file that starts with a sessionKey UUID
-const sessionFileCache = new Map(); // sessionKey -> filename
-function findSessionFile(sessionKey) {
-  if (!sessionKey) return null;
-  if (sessionFileCache.has(sessionKey)) return sessionFileCache.get(sessionKey);
-  // Can't do async lookup here; cache is populated when clients connect
-  return null;
-}
-
-function cacheSessionFile(sessionName) {
-  // Extract UUID prefix from filename (e.g. "abc123-def.jsonl" -> "abc123-def")
-  const sessionId = sessionName.split('.jsonl')[0];
-  sessionFileCache.set(sessionId, sessionName);
-  // Also cache with just first segment for partial matches
-  const prefix = sessionId.split('-')[0];
-  if (prefix) sessionFileCache.set(prefix, sessionName);
+  console.log('[watcher] Watching sessions directory for changes');
+  return watcher;
 }
 
 function parseSessionNameFromUpgrade(req) {
@@ -741,6 +559,5 @@ app.get('*', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`OpenClaw Log Viewer running on http://localhost:${PORT}`);
-  // Connect to Gateway for live streaming
-  connectToGateway();
+  startFileWatcher();
 });
