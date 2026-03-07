@@ -178,7 +178,7 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
           <span className="shrink-0 tabular-nums" title={fmtDateFull(message.timestamp)}>{fmtDate(message.timestamp)}</span>
         </div>
 
-        {text ? <MarkdownMessage text={text} prefix={`${message.id || message.timestamp}-msg`} /> : null}
+        {text ? <MarkdownMessage text={text} /> : null}
 
         {toolResultText ? (
           <CollapsibleText
