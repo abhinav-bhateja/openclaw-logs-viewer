@@ -1,4 +1,5 @@
 import { fmtDate } from '@/lib/format';
+import ChannelIcon from '@/components/ChannelIcon';
 import { useTicker } from '@/hooks/useTicker';
 
 export default function SessionList({ sessions, selectedSession, onSelectSession }) {
@@ -24,7 +25,7 @@ export default function SessionList({ sessions, selectedSession, onSelectSession
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium">{session.label || session.sessionId}</div>
+                <div className="flex items-center gap-1.5 truncate text-xs font-medium"><ChannelIcon channel={session.channel} /><span className="truncate">{session.label || session.sessionId}</span></div>
                 <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                   <span className="font-mono">{session.sessionId.slice(0, 8)}</span>
                   <span>·</span>
