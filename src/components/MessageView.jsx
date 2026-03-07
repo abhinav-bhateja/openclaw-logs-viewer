@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTicker } from '@/hooks/useTicker';
 import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
+import { parseUserMessage } from '@/lib/parseUserMessage';
 
 function parseMarkdownCode(text) {
   const source = text || '';
@@ -174,7 +175,10 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
       ? 'bg-slate-800/55 border-slate-700/80 text-slate-100'
       : 'bg-slate-900/70 border-slate-700/80 text-slate-300';
 
-  const { text, thinking, toolCalls } = splitMessageContent(message);
+  const { text: rawText, thinking, toolCalls } = splitMessageContent(message);
+  const parsed = isUser ? parseUserMessage(message.content) : null;
+  const text = parsed ? parsed.text : rawText;
+  const senderName = parsed?.sender;
   const toolResultText =
     role === 'toolResult'
       ? (Array.isArray(message.content) ? message.content : [])
@@ -187,7 +191,7 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
       <div className={`max-w-[92%] rounded-lg border px-3 py-2.5 ${box}`}>
         <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-slate-400">
           <div className="flex items-center gap-2">
-            <span className="font-medium uppercase tracking-wide">{roleLabel(role)}</span>
+            <span className="font-medium uppercase tracking-wide">{senderName || roleLabel(role)}</span>
             {usagePill(message)}
           </div>
           <span className="shrink-0 tabular-nums" title={fmtDateFull(message.timestamp)}>{fmtDate(message.timestamp)}</span>
