@@ -280,6 +280,27 @@ function StreamingBubble({ text }) {
   );
 }
 
+function SystemEventDivider({ event }) {
+  let label = null;
+  if (event.type === 'thinking_level_change') {
+    label = `Thinking: ${event.thinkingLevel || event.level || '?'}`;
+  } else if (event.type === 'model_change' || (event.type === 'custom' && event.customType === 'model-snapshot')) {
+    const model = event.modelId || event.model || event.data?.modelId || event.data?.model;
+    if (model) label = `Model: ${model}`;
+  } else {
+    label = event.type?.replace(/_/g, ' ');
+  }
+  if (!label) return null;
+
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="h-px flex-1 bg-slate-800" />
+      <span className="text-[10px] text-slate-500">{label}</span>
+      <div className="h-px flex-1 bg-slate-800" />
+    </div>
+  );
+}
+
 export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming, displayOptions, onDisplayOptionsChange }) {
   useTicker(30_000);
   const scrollRef = useRef(null);
@@ -411,28 +432,32 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
             ) : null}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {events.map((event, idx) => (
-              <div
-                key={`${event.type || 'event'}-${event.timestamp || idx}`}
-                className="border border-slate-800 bg-slate-900/45 px-2 py-1 text-[11px] text-slate-500"
-              >
-                {event.type || 'event'} • {fmtDate(event.timestamp)}
-              </div>
-            ))}
-          </div>
-
           <div className="space-y-3 pt-1">
             {filteredMessages.length ? (
-              filteredMessages.map((message, index) => (
-                <div key={`${message.id || message.timestamp || 'msg'}-${index}`} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(index, 15) * 30}ms` }}>
-                  <MessageBubble
-                    message={message}
-                    isLastMessage={!isStreaming && index === filteredMessages.length - 1}
-                    displayOptions={displayOptions}
-                  />
-                </div>
-              ))
+              filteredMessages.map((message, index) => {
+                // Check for system events that occurred before this message
+                const msgTime = new Date(message.timestamp).getTime();
+                const eventsBefore = events.filter((e) => {
+                  const eTime = new Date(e.timestamp).getTime();
+                  const prevTime = index > 0 ? new Date(filteredMessages[index - 1].timestamp).getTime() : 0;
+                  return eTime > prevTime && eTime <= msgTime;
+                });
+
+                return (
+                  <div key={`${message.id || message.timestamp || 'msg'}-${index}`}>
+                    {eventsBefore.map((evt, ei) => (
+                      <SystemEventDivider key={`evt-${index}-${ei}`} event={evt} />
+                    ))}
+                    <div className="animate-fade-in-up" style={{ animationDelay: `${Math.min(index, 15) * 30}ms` }}>
+                      <MessageBubble
+                        message={message}
+                        isLastMessage={!isStreaming && index === filteredMessages.length - 1}
+                        displayOptions={displayOptions}
+                      />
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <div className="text-sm text-slate-500">No messages</div>
             )}
