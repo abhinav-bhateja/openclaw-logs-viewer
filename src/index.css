@@ -50,10 +50,30 @@ body {
   overflow: hidden;
 }
 
+/* Shimmer animation for skeleton loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Tactile press for interactive elements */
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up { animation: none; opacity: 1; }
   .collapsible-grid { transition: none; }
+  .animate-shimmer { animation: none; }
+  button:active:not(:disabled),
+  [role="button"]:active:not(:disabled) { transform: none; }
 }
 
 /* Focus-visible for keyboard nav */

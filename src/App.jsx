@@ -9,6 +9,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { mapMessageRecord } from '@/lib/format';
 import CmdK from '@/components/CmdK';
 import Skeleton from '@/components/Skeleton';
+import Logo from '@/components/Logo';
 
 const NAV_ITEMS = [
   { id: 'sessions', label: 'Sessions' },
@@ -16,6 +17,15 @@ const NAV_ITEMS = [
   { id: 'config', label: 'Config Audit' },
   { id: 'cron', label: 'Cron' },
   { id: 'stats', label: 'Stats' },
+];
+
+const SHORTCUTS = [
+  { keys: ['⌘', 'K'], label: 'Search sessions' },
+  { keys: ['/'], label: 'Focus filter' },
+  { keys: ['?'], label: 'Show shortcuts' },
+  { keys: ['Esc'], label: 'Close dialog / clear filter' },
+  { keys: ['↑', '↓'], label: 'Navigate results' },
+  { keys: ['↵'], label: 'Select result' },
 ];
 
 function getJson(url) {
@@ -66,6 +76,75 @@ function toHash(view, session) {
   return `#/${view}`;
 }
 
+function ShortcutsModal({ open, onClose }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-xl border border-slate-700/80 bg-slate-900/95 p-5 shadow-2xl shadow-black/40"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-200">Keyboard Shortcuts</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-800 hover:text-slate-300"
+          >
+            esc
+          </button>
+        </div>
+        <div className="space-y-2">
+          {SHORTCUTS.map((s) => (
+            <div key={s.label} className="flex items-center justify-between rounded-lg px-2 py-1.5">
+              <span className="text-xs text-slate-400">{s.label}</span>
+              <div className="flex gap-1">
+                {s.keys.map((k) => (
+                  <kbd key={k} className="rounded-md border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[11px] text-slate-400">{k}</kbd>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ onOpenCmdK }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6">
+      <div className="flex flex-col items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" className="h-16 w-16 opacity-60">
+          <rect width="32" height="32" rx="8" fill="#1e293b"/>
+          <path d="M8 22 L12 10 L16 18 L20 10 L24 22" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="16" cy="26" r="1.5" fill="#3b82f6"/>
+        </svg>
+        <h2 className="text-lg font-semibold text-slate-300">Select a session to start reading</h2>
+        <p className="text-sm text-slate-500">Pick a session from the sidebar or search to get started</p>
+      </div>
+      <button
+        type="button"
+        onClick={onOpenCmdK}
+        className="flex items-center gap-2 rounded-lg border border-slate-700/60 bg-slate-800/50 px-4 py-2 text-sm text-slate-400 transition hover:border-slate-600 hover:bg-slate-800 hover:text-slate-300"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.35-4.35" strokeLinecap="round" />
+        </svg>
+        <span>Search sessions</span>
+        <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+      </button>
+      <div className="mt-2 text-[11px] text-slate-600">
+        Press <kbd className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">?</kbd> for all keyboard shortcuts
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState('sessions');
   const [sessions, setSessions] = useState([]);
@@ -82,11 +161,23 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const filterInputRef = useRef(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [displayOptions, setDisplayOptions] = useState({ showThinking: false, showToolUse: true });
+
+  // Dynamic document title
+  useEffect(() => {
+    if (view === 'sessions' && sessionData?.meta) {
+      const label = sessionData.meta.label || sessionData.meta.sessionId?.slice(0, 8) || 'Session';
+      document.title = `${label} — OpenClaw Logs`;
+    } else {
+      const viewLabel = NAV_ITEMS.find((item) => item.id === view)?.label || 'Logs';
+      document.title = view === 'sessions' ? 'OpenClaw Logs' : `${viewLabel} — OpenClaw Logs`;
+    }
+  }, [view, sessionData]);
 
   const setHash = useCallback((nextView, nextSession = null) => {
     const hash = toHash(nextView, nextSession);
@@ -181,6 +272,10 @@ export default function App() {
         e.preventDefault();
         filterInputRef.current?.focus();
         filterInputRef.current?.select();
+      }
+      if (e.key === '?' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
       }
     }
     window.addEventListener('keydown', onSlash);
@@ -340,6 +435,8 @@ export default function App() {
 
   const title = NAV_ITEMS.find((item) => item.id === view)?.label || 'Logs';
 
+  const showEmptyState = view === 'sessions' && !loading && !error && !sessionData && sessions.length > 0;
+
   return (
     <div className="h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),transparent_42%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.12),transparent_40%)] bg-slate-950 text-slate-100">
       <div className="flex h-full">
@@ -360,7 +457,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setMobileOpen((prev) => !prev)}
-                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
+                className="rounded-lg border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
               >
                 Menu
               </button>
@@ -371,10 +468,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setCmdkOpen(true)}
-                className="hidden h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
+                className="hidden h-8 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
               >
                 <span>Jump to session</span>
-                <kbd className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">⌘K</kbd>
+                <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">⌘K</kbd>
               </button>
               <div className="relative">
                 <input
@@ -384,7 +481,7 @@ export default function App() {
                   onKeyDown={(e) => { if (e.key === 'Escape') { setFilter(''); filterInputRef.current?.blur(); } }}
                   placeholder="Filter messages"
                   ref={filterInputRef}
-                  className="h-8 w-40 rounded-md border border-slate-700 bg-slate-950 pl-2.5 pr-8 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
+                  className="h-8 w-40 rounded-lg border border-slate-700 bg-slate-950 pl-2.5 pr-8 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
                 />
                 {filter ? (
                   <button
@@ -396,14 +493,22 @@ export default function App() {
                     ✕
                   </button>
                 ) : (
-                  <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-500">/</kbd>
+                  <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-500">/</kbd>
                 )}
               </div>
               <button
                 type="button"
+                onClick={() => setShortcutsOpen(true)}
+                className="hidden h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
+                title="Keyboard shortcuts"
+              >
+                <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">?</kbd>
+              </button>
+              <button
+                type="button"
                 onClick={async () => { setRefreshing(true); await refreshCurrent(); setRefreshing(false); }}
                 disabled={refreshing}
-                className="flex h-8 items-center gap-1.5 rounded-md border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500 disabled:opacity-60"
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500 disabled:opacity-60"
               >
                 {refreshing ? (
                   <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -418,11 +523,13 @@ export default function App() {
 
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-2 sm:px-3 sm:py-3">
             {error ? (
-              <div className="border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              <div className="rounded-xl border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error.message || String(error)}
               </div>
             ) : (loading && sessions.length === 0) ? (
               <Skeleton />
+            ) : showEmptyState ? (
+              <EmptyState onOpenCmdK={() => setCmdkOpen(true)} />
             ) : view === 'sessions' ? (
               <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} streamingText={streamingText} isStreaming={isStreaming} displayOptions={displayOptions} onDisplayOptionsChange={setDisplayOptions} />
             ) : view === 'commands' ? (
@@ -438,6 +545,7 @@ export default function App() {
         </main>
       </div>
       <CmdK sessions={sessions} selectedSession={selectedSession} onSelectSession={onSelectSession} open={cmdkOpen} onOpenChange={setCmdkOpen} />
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }
