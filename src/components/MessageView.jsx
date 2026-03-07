@@ -6,58 +6,6 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { parseUserMessage } from '@/lib/parseUserMessage';
 
-function parseMarkdownCode(text) {
-  const source = text || '';
-  const blocks = [];
-  const fenceRegex = /```([\w-]+)?\n?([\s\S]*?)```/g;
-  let last = 0;
-  let match;
-
-  while ((match = fenceRegex.exec(source)) !== null) {
-    if (match.index > last) {
-      blocks.push({ type: 'text', content: source.slice(last, match.index) });
-    }
-    blocks.push({ type: 'code', language: match[1] || '', content: match[2] || '' });
-    last = fenceRegex.lastIndex;
-  }
-
-  if (last < source.length) {
-    blocks.push({ type: 'text', content: source.slice(last) });
-  }
-
-  return blocks.length ? blocks : [{ type: 'text', content: source }];
-}
-
-function renderInlineMarkdown(text, keyPrefix) {
-  // Split on inline code first, then handle bold/italic in text segments
-  const parts = text.split(/`([^`]+)`/g);
-  return parts.map((part, index) => {
-    if (index % 2 === 1) {
-      return (
-        <code
-          key={`${keyPrefix}-inline-${index}`}
-          className="rounded border border-slate-600/70 bg-slate-900 px-1.5 py-0.5 font-mono text-[0.9em] text-slate-100"
-        >
-          {part}
-        </code>
-      );
-    }
-    // Handle bold (**text**), italic (*text*), and links [text](url)
-    const segments = [];
-    const re = /(\*\*(.+?)\*\*|\*(.+?)\*|\[([^\]]+)\]\((https?:\/\/[^\)]+)\))/g;
-    let last = 0;
-    let m;
-    while ((m = re.exec(part)) !== null) {
-      if (m.index > last) segments.push(<span key={`${keyPrefix}-t-${index}-${last}`} className="whitespace-pre-wrap break-words">{part.slice(last, m.index)}</span>);
-      if (m[2]) segments.push(<strong key={`${keyPrefix}-b-${index}-${m.index}`} className="font-semibold text-slate-100">{m[2]}</strong>);
-      else if (m[3]) segments.push(<em key={`${keyPrefix}-i-${index}-${m.index}`} className="italic text-slate-200">{m[3]}</em>);
-      else if (m[4]) segments.push(<a key={`${keyPrefix}-a-${index}-${m.index}`} href={m[5]} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">{m[4]}</a>);
-      last = re.lastIndex;
-    }
-    if (last < part.length) segments.push(<span key={`${keyPrefix}-t-${index}-${last}`} className="whitespace-pre-wrap break-words">{part.slice(last)}</span>);
-    return segments.length ? segments : <span key={`${keyPrefix}-text-${index}`} className="whitespace-pre-wrap break-words">{part}</span>;
-  });
-}
 
 function CodeBlock({ content, language }) {
   const [copied, setCopied] = useState(false);
