@@ -4,10 +4,12 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError, 
   const wsRef = useRef(null);
   const retryTimerRef = useRef(null);
 
+  // Use refs for callbacks to avoid reconnecting when they change
+  const cbRef = useRef({ onMessage, onError, onOpen, onClose });
+  cbRef.current = { onMessage, onError, onOpen, onClose };
+
   useEffect(() => {
-    if (!enabled || !sessionName) {
-      return undefined;
-    }
+    if (!enabled || !sessionName) return undefined;
 
     let closedByCleanup = false;
 
@@ -17,28 +19,24 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError, 
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
-      ws.onopen = () => {
-        onOpen?.();
-      };
+      ws.onopen = () => cbRef.current.onOpen?.();
 
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
-          onMessage?.(payload);
+          cbRef.current.onMessage?.(payload);
         } catch (error) {
-          onError?.(error);
+          cbRef.current.onError?.(error);
         }
       };
 
-      ws.onerror = () => {
-        onError?.(new Error('WebSocket connection error'));
-      };
+      ws.onerror = () => cbRef.current.onError?.(new Error('WebSocket error'));
 
       ws.onclose = () => {
         wsRef.current = null;
-        onClose?.();
+        cbRef.current.onClose?.();
         if (!closedByCleanup) {
-          retryTimerRef.current = window.setTimeout(connect, 1000);
+          retryTimerRef.current = window.setTimeout(connect, 2000);
         }
       };
     };
@@ -55,5 +53,5 @@ export function useWebSocket({ sessionName, enabled = true, onMessage, onError, 
         wsRef.current.close();
       }
     };
-  }, [enabled, sessionName, onMessage, onError, onOpen, onClose]);
+  }, [enabled, sessionName]); // Only reconnect when session changes
 }
