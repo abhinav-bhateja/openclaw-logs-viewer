@@ -409,8 +409,11 @@ function startFileWatcher() {
             if (item.type === 'message') messages.push(item);
           } catch {}
         }
-        if (messages.length > 0) {
-          broadcastToSession(filename, { type: 'new_messages', messages });
+        for (const item of newLines) {
+          try {
+            const record = JSON.parse(item);
+            broadcastToSession(filename, { type: 'line', record });
+          } catch {}
         }
       });
     }).catch(() => {});
