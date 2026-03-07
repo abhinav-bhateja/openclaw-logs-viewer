@@ -40,20 +40,23 @@ body {
 /* Smooth collapsible (CSS grid trick) */
 .collapsible-grid {
   display: grid;
-  grid-template-rows: 0fr;
   transition: grid-template-rows 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.collapsible-grid[data-open="true"] {
-  grid-template-rows: 1fr;
+
+/* Gentle streaming pulse */
+@keyframes streamingPulse {
+  0%, 100% { border-color: oklch(0.69 0.15 293 / 0.25); }
+  50% { border-color: oklch(0.69 0.15 293 / 0.12); }
 }
-.collapsible-grid > * {
-  overflow: hidden;
+.streaming-pulse {
+  animation: streamingPulse 3s ease-in-out infinite;
 }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up { animation: none; opacity: 1; }
   .collapsible-grid { transition: none; }
+  .streaming-pulse { animation: none; }
 }
 
 /* Focus-visible for keyboard nav */
