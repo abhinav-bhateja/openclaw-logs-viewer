@@ -86,6 +86,7 @@ export default function App() {
   const [wsReconnecting, setWsReconnecting] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [displayOptions, setDisplayOptions] = useState({ showThinking: false, showToolUse: true });
 
   const setHash = useCallback((nextView, nextSession = null) => {
     const hash = toHash(nextView, nextSession);
@@ -423,7 +424,7 @@ export default function App() {
             ) : (loading && sessions.length === 0) ? (
               <Skeleton />
             ) : view === 'sessions' ? (
-              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} streamingText={streamingText} isStreaming={isStreaming} />
+              <MessageView sessionData={sessionData} filter={filter} onRefresh={refreshCurrent} wsConnected={wsConnected} wsReconnecting={wsReconnecting} streamingText={streamingText} isStreaming={isStreaming} displayOptions={displayOptions} onDisplayOptionsChange={setDisplayOptions} />
             ) : view === 'commands' ? (
               <CommandsView commands={commands} filter={filter} />
             ) : view === 'config' ? (

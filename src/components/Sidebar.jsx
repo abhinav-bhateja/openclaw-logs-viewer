@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import SessionList from '@/components/SessionList';
 import Logo from '@/components/Logo';
+
+const CHANNELS = ['All', 'Discord', 'Cron', 'Direct'];
 
 export default function Sidebar({
   navItems,
@@ -11,6 +14,12 @@ export default function Sidebar({
   mobileOpen,
   onCloseMobile,
 }) {
+  const [channelFilter, setChannelFilter] = useState('All');
+
+  const filteredSessions = channelFilter === 'All'
+    ? sessions
+    : sessions.filter((s) => (s.channel || 'other') === channelFilter.toLowerCase());
+
   return (
     <>
       {mobileOpen ? (
@@ -56,18 +65,29 @@ export default function Sidebar({
         </nav>
 
         <div className="flex min-h-0 flex-1 flex-col border-t border-slate-800">
-          <div className="px-3 py-2 text-xs uppercase tracking-wide text-slate-400">Sessions</div>
+          <div className="flex items-center gap-1 px-3 py-2">
+            {CHANNELS.map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => setChannelFilter(ch)}
+                className={`rounded-full px-2 py-0.5 text-[11px] transition duration-100 ${
+                  channelFilter === ch
+                    ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'
+                }`}
+              >
+                {ch}
+              </button>
+            ))}
+          </div>
           <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-2.5">
             <SessionList
-              sessions={sessions}
+              sessions={filteredSessions}
               selectedSession={selectedSession}
               onSelectSession={onSelectSession}
             />
           </div>
-        </div>
-
-        <div className="mt-auto border-t border-slate-800 p-3 text-xs text-slate-400">
-          Local dashboard on <span className="text-slate-200">:3099</span>
         </div>
       </aside>
     </>

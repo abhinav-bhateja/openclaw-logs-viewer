@@ -52,24 +52,24 @@ const labelCache = new Map();
 function extractLabelFromText(text) {
   if (!text) return null;
   // Heartbeat
-  if (/heartbeat/i.test(text.slice(0, 200))) return 'Heartbeat';
+  if (/heartbeat/i.test(text.slice(0, 200))) return { label: 'Heartbeat', channel: 'cron' };
   // Cron job: [cron:id job-name]
   const cronMatch = text.match(/^\[cron:[^\s]+ ([^\]]+)\]/);
-  if (cronMatch) return `⏰ ${cronMatch[1]}`;
+  if (cronMatch) return { label: `⏰ ${cronMatch[1]}`, channel: 'cron' };
   // New/reset session (no channel)
-  if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return 'Main';
+  if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return { label: 'Main', channel: 'direct' };
   // Extract conversation_label from JSON block
   const labelMatch = text.match(/"conversation_label"\s*:\s*"([^"]+)"/);
   if (labelMatch) {
     const label = labelMatch[1];
     const guildMatch = label.match(/Guild (#[^\s]+)/);
-    if (guildMatch) return guildMatch[1];
-    if (label.startsWith('telegram:')) return 'Telegram';
-    if (label.startsWith('channel:')) return 'Discord';
-    return label;
+    if (guildMatch) return { label: guildMatch[1], channel: 'discord' };
+    if (label.startsWith('telegram:')) return { label: 'Telegram', channel: 'telegram' };
+    if (label.startsWith('channel:')) return { label: 'Discord', channel: 'discord' };
+    return { label, channel: 'other' };
   }
   // System message (compaction, audit) — still main session
-  if (/Post-Compaction|Compaction failed|compaction/i.test(text.slice(0, 300))) return 'Main';
+  if (/Post-Compaction|Compaction failed|compaction/i.test(text.slice(0, 300))) return { label: 'Main', channel: 'direct' };
   return null; // will fall back to date-based label
 }
 
@@ -78,6 +78,7 @@ async function getSessionLabel(filePath, mtime) {
   if (labelCache.has(cacheKey)) return labelCache.get(cacheKey);
 
   let label = null;
+  let channel = 'other';
   try {
     // Read first 8KB — enough to find the first user message
     const fd = await fsp.open(filePath, 'r');
@@ -98,7 +99,8 @@ async function getSessionLabel(filePath, mtime) {
       for (const item of content) {
         if (item && item.type === 'text' && item.text) {
           // item.text is already decoded — regex works correctly here
-          label = extractLabelFromText(item.text);
+          const extracted = extractLabelFromText(item.text);
+          if (extracted) { label = extracted.label; channel = extracted.channel; }
           break;
         }
       }
@@ -109,10 +111,11 @@ async function getSessionLabel(filePath, mtime) {
   }
 
   // No user message found — likely a compaction/system-only session
-  if (label === null) label = 'Main';
+  if (label === null) { label = 'Main'; channel = 'direct'; }
 
-  labelCache.set(cacheKey, label);
-  return label;
+  const result = { label, channel };
+  labelCache.set(cacheKey, result);
+  return result;
 }
 
 function dateLabel(mtime) {
@@ -165,10 +168,13 @@ async function listSessionFiles() {
       const fullPath = path.join(SESSIONS_DIR, name);
       const stats = await fsp.stat(fullPath);
       const meta = getSessionMeta(name, stats);
-      [meta.label, meta.messageCount] = await Promise.all([
-        getSessionLabel(fullPath, stats.mtime.getTime()).then((l) => l || dateLabel(stats.mtime)),
+      const [labelResult, msgCount] = await Promise.all([
+        getSessionLabel(fullPath, stats.mtime.getTime()),
         countMessages(fullPath),
       ]);
+      meta.label = labelResult ? labelResult.label : dateLabel(stats.mtime);
+      meta.channel = labelResult ? labelResult.channel : 'other';
+      meta.messageCount = msgCount;
       return meta;
     })
   );
@@ -234,6 +240,50 @@ app.get('/api/sessions/:id', async (req, res) => {
   } catch (error) {
     const status = error.status || 500;
     res.status(status).json({ error: error.message });
+  }
+});
+
+app.get('/api/sessions/:id/export', async (req, res) => {
+  const filePath = path.join(SESSIONS_DIR, req.params.id);
+  try {
+    const content = await fsp.readFile(filePath, 'utf8');
+    const lines = content.split('\n').filter(Boolean);
+    const showThinking = req.query.showThinking !== 'false';
+    const showToolUse = req.query.showToolUse !== 'false';
+    let md = '';
+    let sessionLabel = req.params.id;
+    for (const line of lines) {
+      try {
+        const item = JSON.parse(line);
+        if (item.type === 'session') {
+          sessionLabel = item.label || item.sessionId || req.params.id;
+          continue;
+        }
+        if (item.type !== 'message') continue;
+        const msg = item.message;
+        if (!msg) continue;
+        const role = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Assistant' : msg.role;
+        if (msg.role === 'toolResult' && !showToolUse) continue;
+        const ts = item.timestamp ? new Date(item.timestamp).toLocaleString() : '';
+        md += `## ${role}${ts ? ' — ' + ts : ''}\n\n`;
+        const blocks = Array.isArray(msg.content) ? msg.content : [];
+        for (const block of blocks) {
+          if (block.type === 'text' && block.text) {
+            md += block.text + '\n\n';
+          } else if (block.type === 'thinking' && showThinking) {
+            md += '<details><summary>Thinking</summary>\n\n' + block.thinking + '\n\n</details>\n\n';
+          } else if (block.type === 'toolCall' && showToolUse) {
+            md += '**Tool: ' + (block.name || 'unknown') + '**\n```json\n' + JSON.stringify(block.arguments || block.input, null, 2) + '\n```\n\n';
+          }
+        }
+      } catch {}
+    }
+    const header = '# ' + sessionLabel + '\n\n---\n\n';
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + req.params.id.replace('.jsonl', '') + '.md"');
+    res.send(header + md);
+  } catch (err) {
+    res.status(404).json({ error: 'Session not found' });
   }
 });
 

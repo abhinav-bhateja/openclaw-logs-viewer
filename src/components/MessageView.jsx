@@ -161,7 +161,7 @@ function usagePill(message) {
   );
 }
 
-function MessageBubble({ message, isLastMessage }) {
+function MessageBubble({ message, isLastMessage, displayOptions }) {
   const role = message.role || 'unknown';
   const isUser = role === 'user';
   const isAssistant = role === 'assistant';
@@ -202,7 +202,7 @@ function MessageBubble({ message, isLastMessage }) {
           />
         ) : null}
 
-        {thinking.map((block, index) => {
+        {displayOptions?.showThinking !== false && thinking.map((block, index) => {
           const isLast = isLastMessage && index === thinking.length - 1;
           return (
             <details
@@ -218,7 +218,7 @@ function MessageBubble({ message, isLastMessage }) {
           );
         })}
 
-        {toolCalls.map((call, index) => (
+        {displayOptions?.showToolUse !== false && toolCalls.map((call, index) => (
           <details
             key={`${message.id || message.timestamp}-tool-${index}`}
             className="mt-2 rounded-lg border border-blue-400/25 bg-blue-400/8 p-2"
@@ -262,7 +262,7 @@ function StreamingBubble({ text }) {
   );
 }
 
-export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming }) {
+export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming, displayOptions, onDisplayOptionsChange }) {
   useTicker(30_000);
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -346,6 +346,38 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                 Reconnecting...
               </span>
             )}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showThinking: !displayOptions?.showThinking })}
+                className={`rounded-full px-2 py-0.5 text-[11px] transition duration-100 ${
+                  displayOptions?.showThinking
+                    ? 'bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/30'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Thinking
+              </button>
+              <button
+                type="button"
+                onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showToolUse: !displayOptions?.showToolUse })}
+                className={`rounded-full px-2 py-0.5 text-[11px] transition duration-100 ${
+                  displayOptions?.showToolUse
+                    ? 'bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/30'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Tools
+              </button>
+            </div>
+            <a
+              href={`/api/sessions/${sessionData.session?.name}/export?showThinking=${displayOptions?.showThinking ?? false}&showToolUse=${displayOptions?.showToolUse ?? true}`}
+              download
+              className="rounded-full px-2 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60"
+              title="Export as Markdown"
+            >
+              ↓ Export
+            </a>
             {sessionData.parseErrors?.length ? (
               <span className="border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
                 {sessionData.parseErrors.length} parse errors
@@ -371,6 +403,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                   key={`${message.id || message.timestamp || 'msg'}-${index}`}
                   message={message}
                   isLastMessage={!isStreaming && index === filteredMessages.length - 1}
+                  displayOptions={displayOptions}
                 />
               ))
             ) : (
