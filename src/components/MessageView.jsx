@@ -205,29 +205,30 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
         {displayOptions?.showThinking !== false && thinking.map((block, index) => {
           const isLast = isLastMessage && index === thinking.length - 1;
           return (
-            <details
-              key={`${message.id || message.timestamp}-thinking-${index}`}
-              className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2"
-              open={isLast}
-            >
-              <summary className="cursor-pointer text-xs text-amber-200">
-                Thinking block {index + 1}
-              </summary>
-              <CollapsibleText text={block} className="mt-2 text-amber-100" />
-            </details>
+            <div key={`${message.id || message.timestamp}-thinking-${index}`} className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2">
+              <button type="button" onClick={(e) => { const grid = e.currentTarget.nextElementSibling; grid.dataset.open = grid.dataset.open === 'true' ? 'false' : 'true'; }} className="flex w-full items-center gap-1.5 text-xs text-amber-200 hover:text-amber-100 transition duration-100">
+                <span className="text-[10px]">▶</span> Thinking block {index + 1}
+              </button>
+              <div className="collapsible-grid" data-open={isLast ? 'true' : 'false'}>
+                <div>
+                  <CollapsibleText text={block} className="mt-2 text-amber-100" />
+                </div>
+              </div>
+            </div>
           );
         })}
 
         {displayOptions?.showToolUse !== false && toolCalls.map((call, index) => (
-          <details
-            key={`${message.id || message.timestamp}-tool-${index}`}
-            className="mt-2 rounded-lg border border-blue-400/25 bg-blue-400/8 p-2"
-          >
-            <summary className="cursor-pointer text-xs text-blue-300">
-              Tool: {call.name || 'unknown'}
-            </summary>
-            <CollapsibleText text={pretty(call.arguments)} className="mt-2 text-blue-100" mono />
-          </details>
+          <div key={`${message.id || message.timestamp}-tool-${index}`} className="mt-2 rounded-lg border border-blue-400/25 bg-blue-400/8 p-2">
+            <button type="button" onClick={(e) => { const grid = e.currentTarget.nextElementSibling; grid.dataset.open = grid.dataset.open === 'true' ? 'false' : 'true'; }} className="flex w-full items-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 transition duration-100">
+              <span className="text-[10px]">▶</span> Tool: {call.name || 'unknown'}
+            </button>
+            <div className="collapsible-grid" data-open="false">
+              <div>
+                <CollapsibleText text={pretty(call.arguments)} className="mt-2 text-blue-100" mono />
+              </div>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -399,12 +400,13 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
           <div className="space-y-3 pt-1">
             {filteredMessages.length ? (
               filteredMessages.map((message, index) => (
-                <MessageBubble
-                  key={`${message.id || message.timestamp || 'msg'}-${index}`}
-                  message={message}
-                  isLastMessage={!isStreaming && index === filteredMessages.length - 1}
-                  displayOptions={displayOptions}
-                />
+                <div key={`${message.id || message.timestamp || 'msg'}-${index}`} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(index, 15) * 30}ms` }}>
+                  <MessageBubble
+                    message={message}
+                    isLastMessage={!isStreaming && index === filteredMessages.length - 1}
+                    displayOptions={displayOptions}
+                  />
+                </div>
               ))
             ) : (
               <div className="text-sm text-slate-500">No messages</div>
