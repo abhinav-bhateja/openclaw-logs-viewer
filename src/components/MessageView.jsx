@@ -143,6 +143,41 @@ function usagePill(message) {
   );
 }
 
+function ToolResultPreview({ text }) {
+  const lines = text.split('\n');
+  const preview = lines.slice(0, 3).join('\n');
+  const hasMore = lines.length > 3;
+
+  if (!hasMore) {
+    return <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{text}</pre>;
+  }
+
+  const extraCount = lines.length - 3;
+
+  return (
+    <div className="mt-2">
+      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{preview}</pre>
+      <div className="collapsible-grid" data-open="false">
+        <div>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{lines.slice(3).join('\n')}</pre>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          const grid = e.currentTarget.previousElementSibling;
+          const isOpen = grid.dataset.open === 'true';
+          grid.dataset.open = isOpen ? 'false' : 'true';
+          e.currentTarget.textContent = isOpen ? `+${extraCount} more lines` : 'collapse';
+        }}
+        className="mt-1 text-[10px] text-slate-500 hover:text-slate-300 transition duration-100"
+      >
+        +{extraCount} more lines
+      </button>
+    </div>
+  );
+}
+
 function MessageBubble({ message, isLastMessage, displayOptions }) {
   const role = message.role || 'unknown';
   const isUser = role === 'user';
@@ -181,10 +216,7 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
         {text ? <MarkdownMessage text={text} /> : null}
 
         {toolResultText ? (
-          <CollapsibleText
-            text={toolResultText}
-            className="mt-2 text-slate-300"
-          />
+          <ToolResultPreview text={toolResultText} />
         ) : null}
 
         {displayOptions?.showThinking !== false && thinking.map((block, index) => {
