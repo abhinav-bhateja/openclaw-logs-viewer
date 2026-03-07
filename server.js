@@ -287,6 +287,57 @@ app.get('/api/sessions/:id/export', async (req, res) => {
   }
 });
 
+app.get('/api/search', async (req, res) => {
+  const query = (req.query.q || '').toLowerCase().trim();
+  const channelFilter = req.query.channel || '';
+  if (!query) return res.json({ results: [] });
+
+  try {
+    const sessions = await listSessionFiles();
+    const filtered = channelFilter
+      ? sessions.filter((s) => s.channel === channelFilter.toLowerCase())
+      : sessions;
+
+    const results = [];
+    for (const session of filtered.slice(0, 50)) {
+      const filePath = path.join(SESSIONS_DIR, session.name);
+      try {
+        const content = await fsp.readFile(filePath, 'utf8');
+        const lines = content.split('\n').filter(Boolean);
+        const matches = [];
+        for (const line of lines) {
+          try {
+            const item = JSON.parse(line);
+            if (item.type !== 'message') continue;
+            const msg = item.message;
+            if (!msg) continue;
+            const blocks = Array.isArray(msg.content) ? msg.content : [];
+            for (const block of blocks) {
+              if (block.type !== 'text' || !block.text) continue;
+              const lower = block.text.toLowerCase();
+              const idx = lower.indexOf(query);
+              if (idx === -1) continue;
+              const start = Math.max(0, idx - 60);
+              const end = Math.min(block.text.length, idx + query.length + 60);
+              const snippet = (start > 0 ? '...' : '') + block.text.slice(start, end) + (end < block.text.length ? '...' : '');
+              matches.push({ snippet, role: msg.role, timestamp: item.timestamp });
+              if (matches.length >= 5) break;
+            }
+          } catch {}
+          if (matches.length >= 5) break;
+        }
+        if (matches.length > 0) {
+          results.push({ session: { fileId: session.name, label: session.label, channel: session.channel }, matches });
+        }
+      } catch {}
+      if (results.length >= 20) break;
+    }
+    res.json({ results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/logs/commands', async (req, res) => {
   try {
     const rows = await parseJsonlFile(COMMANDS_LOG);
