@@ -21,6 +21,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    target: 'safari15',
     cssTarget: 'safari14',
     rollupOptions: {
       output: {
