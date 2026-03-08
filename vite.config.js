@@ -21,6 +21,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    cssTarget: 'safari14',
     rollupOptions: {
       output: {
         manualChunks: {
