@@ -85,3 +85,8 @@ a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Dynamic viewport height fallback */
+@supports (height: 100dvh) {
+  .h-screen { height: 100dvh; }
+}
