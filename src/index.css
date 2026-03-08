@@ -45,8 +45,8 @@ body {
 
 /* Gentle streaming pulse */
 @keyframes streamingPulse {
-  0%, 100% { border-color: oklch(0.69 0.15 293 / 0.25); }
-  50% { border-color: oklch(0.69 0.15 293 / 0.12); }
+  0%, 100% { border-color: rgba(139, 92, 246, 0.25); }
+  50% { border-color: rgba(139, 92, 246, 0.12); }
 }
 .streaming-pulse {
   animation: streamingPulse 3s ease-in-out infinite;
