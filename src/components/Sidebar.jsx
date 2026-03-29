@@ -89,10 +89,12 @@ export default function Sidebar({
   return (
     <>
       {mobileOpen ? (
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={-1}
           aria-label="Close menu"
           onClick={onCloseMobile}
+          onTouchEnd={(e) => { e.preventDefault(); onCloseMobile(); }}
           className="fixed inset-0 z-30 bg-black/45 md:hidden"
         />
       ) : null}
