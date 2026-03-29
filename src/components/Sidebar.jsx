@@ -95,7 +95,8 @@ export default function Sidebar({
           aria-label="Close menu"
           onClick={onCloseMobile}
           onTouchEnd={(e) => { e.preventDefault(); onCloseMobile(); }}
-          className="fixed inset-0 z-30 bg-black/45 md:hidden"
+          style={{ touchAction: 'manipulation' }}
+          className="fixed inset-0 z-30 cursor-pointer bg-black/45 md:hidden"
         />
       ) : null}
 
