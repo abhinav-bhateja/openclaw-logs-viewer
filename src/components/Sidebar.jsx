@@ -101,8 +101,8 @@ export default function Sidebar({
       ) : null}
 
       <aside
-        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 lg:static lg:z-auto lg:w-80 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 lg:static lg:z-auto lg:w-80 lg:translate-x-0 lg:pointer-events-auto ${
+          mobileOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none'
         }`}
       >
         {/* Header */}
