@@ -533,7 +533,7 @@ export default function App() {
             </div>
           </header>
 
-          <section className="min-h-0 flex-1 overflow-hidden sm:px-1 sm:py-1">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden sm:px-1 sm:py-1">
             {error ? (
               <div className="rounded-xl border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error.message || String(error)}
