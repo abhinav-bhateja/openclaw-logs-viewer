@@ -451,7 +451,7 @@ export default function App() {
           onCloseMobile={() => setMobileOpen(false)}
         />
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <main className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="shrink-0 border-b border-slate-800/80 bg-slate-900/55 px-3 py-2 sm:px-4">
             <div className="flex items-center gap-2">
               <button
