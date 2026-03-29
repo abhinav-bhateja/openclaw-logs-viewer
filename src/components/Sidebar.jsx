@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import SessionList from '@/components/SessionList';
 import Logo from '@/components/Logo';
+import { Sheet, SheetTrigger, SheetContent } from '@/components/ui/Sheet';
 
 const CHANNELS = ['All', 'Discord', 'Cron', 'Direct'];
 
@@ -54,6 +55,102 @@ function sortSessions(sessions, sortBy) {
   }
 }
 
+function SidebarInner({
+  navItems,
+  activeView,
+  onViewChange,
+  sessions,
+  selectedSession,
+  onSelectSession,
+  channelFilter,
+  setChannelFilter,
+  sortBy,
+  setSortBy,
+  channelCounts,
+  sortedSessions,
+  filteredSessions,
+}) {
+  return (
+    <>
+      {/* Header */}
+      <div className="border-b border-slate-800 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Logo />
+          <h1 className="text-base font-semibold tracking-tight">Logs</h1>
+        </div>
+      </div>
+
+      {/* Nav tab bar */}
+      <div className="flex border-b border-slate-800">
+        {navItems.map((item) => {
+          const active = activeView === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              title={item.label}
+              onClick={() => onViewChange(item.id)}
+              className={`flex flex-1 items-center justify-center py-2.5 transition ${
+                active
+                  ? 'border-b-2 border-blue-400 text-blue-300'
+                  : 'border-b-2 border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {NAV_ICONS[item.id] || <span className="text-xs">{item.label}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Channel filters + sort */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="space-y-2 px-3 pt-2.5 pb-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-slate-400">
+              {filteredSessions.length}
+            </span>
+            {CHANNELS.map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => setChannelFilter(ch)}
+                className={`rounded-lg px-3 py-1 text-xs font-medium transition duration-100 ${
+                  channelFilter === ch
+                    ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'
+                }`}
+              >
+                {ch}
+                {channelCounts[ch] != null && (
+                  <span className="ml-1 text-[10px] opacity-60">{channelCounts[ch]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="w-full rounded-lg border border-slate-700/60 bg-slate-800/50 px-2 py-1 text-[11px] text-slate-400 outline-none focus:border-blue-500/40"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Session list */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2.5">
+          <SessionList
+            sessions={sortedSessions}
+            selectedSession={selectedSession}
+            onSelectSession={onSelectSession}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function Sidebar({
   navItems,
   activeView,
@@ -86,109 +183,23 @@ export default function Sidebar({
     return counts;
   }, [sessions]);
 
+  const sharedProps = {
+    navItems, activeView, onViewChange, sessions, selectedSession, onSelectSession,
+    channelFilter, setChannelFilter, sortBy, setSortBy, channelCounts, sortedSessions, filteredSessions,
+  };
+
   return (
     <>
-      {mobileOpen ? (
-        <div
-          role="button"
-          tabIndex={-1}
-          aria-label="Close menu"
-          onClick={onCloseMobile}
-          onTouchEnd={(e) => { e.preventDefault(); onCloseMobile(); }}
-          style={{ touchAction: 'manipulation' }}
-          className="fixed inset-0 z-30 cursor-pointer bg-black/45 lg:hidden"
-        />
-      ) : null}
+      {/* Mobile: Radix Sheet */}
+      <Sheet open={mobileOpen} onOpenChange={(open) => { if (!open) onCloseMobile(); }}>
+        <SheetContent>
+          <SidebarInner {...sharedProps} />
+        </SheetContent>
+      </Sheet>
 
-      <aside
-        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 lg:static lg:z-auto lg:w-80 lg:translate-x-0 lg:pointer-events-auto ${
-          mobileOpen ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none'
-        }`}
-      >
-        {/* Header */}
-        <div className="border-b border-slate-800 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Logo />
-            <h1 className="text-base font-semibold tracking-tight">Logs</h1>
-            {mobileOpen && (
-              <button
-                type="button"
-                onClick={onCloseMobile}
-                className="ml-auto rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 lg:hidden"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Nav tab bar */}
-        <div className="flex border-b border-slate-800">
-          {navItems.map((item) => {
-            const active = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                title={item.label}
-                onClick={() => onViewChange(item.id)}
-                className={`flex flex-1 items-center justify-center py-2.5 transition ${
-                  active
-                    ? 'border-b-2 border-blue-400 text-blue-300'
-                    : 'border-b-2 border-transparent text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {NAV_ICONS[item.id] || <span className="text-xs">{item.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Channel filters + sort */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="space-y-2 px-3 pt-2.5 pb-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-slate-400">
-                {filteredSessions.length}
-              </span>
-              {CHANNELS.map((ch) => (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => setChannelFilter(ch)}
-                  className={`rounded-lg px-3 py-1 text-xs font-medium transition duration-100 ${
-                    channelFilter === ch
-                      ? 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/60'
-                  }`}
-                >
-                  {ch}
-                  {channelCounts[ch] != null && (
-                    <span className="ml-1 text-[10px] opacity-60">{channelCounts[ch]}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full rounded-lg border border-slate-700/60 bg-slate-800/50 px-2 py-1 text-[11px] text-slate-400 outline-none focus:border-blue-500/40"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Session list */}
-          <div className="min-h-0 flex-1 overflow-hidden px-2.5 pb-2.5">
-            <SessionList
-              sessions={sortedSessions}
-              selectedSession={selectedSession}
-              onSelectSession={onSelectSession}
-            />
-          </div>
-        </div>
+      {/* Desktop: static sidebar */}
+      <aside className="no-scrollbar hidden w-80 flex-col border-r border-slate-800/80 bg-slate-900/95 lg:flex">
+        <SidebarInner {...sharedProps} />
       </aside>
     </>
   );
