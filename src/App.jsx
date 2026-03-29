@@ -457,7 +457,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setMobileOpen((prev) => !prev)}
-                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
+                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 lg:hidden"
               >
                 ☰
               </button>

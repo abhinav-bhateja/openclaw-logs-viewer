@@ -96,12 +96,12 @@ export default function Sidebar({
           onClick={onCloseMobile}
           onTouchEnd={(e) => { e.preventDefault(); onCloseMobile(); }}
           style={{ touchAction: 'manipulation' }}
-          className="fixed inset-0 z-30 cursor-pointer bg-black/45 md:hidden"
+          className="fixed inset-0 z-30 cursor-pointer bg-black/45 lg:hidden"
         />
       ) : null}
 
       <aside
-        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 md:static md:z-auto md:w-80 md:translate-x-0 ${
+        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 lg:static lg:z-auto lg:w-80 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -114,7 +114,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={onCloseMobile}
-                className="ml-auto rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 md:hidden"
+                className="ml-auto rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 lg:hidden"
               >
                 ✕
               </button>
