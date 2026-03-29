@@ -452,76 +452,88 @@ export default function App() {
         />
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex items-center gap-2 border-b border-slate-800/80 bg-slate-900/55 px-3 py-2 sm:px-4">
-            <div className="flex min-w-0 items-center gap-2">
+          <header className="shrink-0 border-b border-slate-800/80 bg-slate-900/55 px-3 py-2 sm:px-4">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileOpen((prev) => !prev)}
-                className="rounded-lg border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
+                className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-[11px] font-medium transition duration-100 hover:bg-slate-800 md:hidden"
               >
-                Menu
+                ☰
               </button>
-              <h2 className="truncate text-sm font-semibold tracking-tight sm:text-base">{title}</h2>
-            </div>
+              <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight sm:text-base">{title}</h2>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setCmdkOpen(true)}
-                className="hidden h-8 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
-              >
-                <span>Jump to session</span>
-                <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">⌘K</kbd>
-              </button>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') { setFilter(''); filterInputRef.current?.blur(); } }}
-                  placeholder="Filter messages"
-                  ref={filterInputRef}
-                  className="h-8 w-40 rounded-lg border border-slate-700 bg-slate-950 pl-2.5 pr-8 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
-                />
-                {filter ? (
-                  <button
-                    type="button"
-                    onClick={() => { setFilter(''); filterInputRef.current?.focus(); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 transition duration-100 hover:text-slate-200"
-                    aria-label="Clear filter"
-                  >
-                    ✕
-                  </button>
-                ) : (
-                  <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-500">/</kbd>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShortcutsOpen(true)}
-                className="hidden h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
-                title="Keyboard shortcuts"
-              >
-                <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">?</kbd>
-              </button>
-              <button
-                type="button"
-                onClick={async () => { setRefreshing(true); await refreshCurrent(); setRefreshing(false); }}
-                disabled={refreshing}
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-blue-500/35 bg-blue-600/80 px-2.5 text-[11px] font-semibold transition duration-100 hover:bg-blue-500 disabled:opacity-60"
-              >
-                {refreshing ? (
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                {/* Search — mobile: icon only, desktop: full */}
+                <button
+                  type="button"
+                  onClick={() => setCmdkOpen(true)}
+                  className="flex h-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/60 px-2 text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:gap-1.5 sm:px-2.5"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m21 21-4.35-4.35" strokeLinecap="round" />
                   </svg>
-                ) : null}
-                {refreshing ? 'Refreshing' : 'Refresh'}
-              </button>
+                  <span className="hidden text-[11px] sm:inline">Search</span>
+                  <kbd className="hidden rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] sm:inline">⌘K</kbd>
+                </button>
+
+                {/* Filter — hidden on mobile, visible on sm+ */}
+                <div className="relative hidden sm:block">
+                  <input
+                    type="text"
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') { setFilter(''); filterInputRef.current?.blur(); } }}
+                    placeholder="Filter messages"
+                    ref={filterInputRef}
+                    className="h-8 w-40 rounded-lg border border-slate-700 bg-slate-950 pl-2.5 pr-8 text-xs placeholder:text-slate-500 transition focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/40 sm:w-56"
+                  />
+                  {filter ? (
+                    <button
+                      type="button"
+                      onClick={() => { setFilter(''); filterInputRef.current?.focus(); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 transition duration-100 hover:text-slate-200"
+                      aria-label="Clear filter"
+                    >
+                      ✕
+                    </button>
+                  ) : (
+                    <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px] text-slate-500">/</kbd>
+                  )}
+                </div>
+
+                {/* Shortcuts — desktop only */}
+                <button
+                  type="button"
+                  onClick={() => setShortcutsOpen(true)}
+                  className="hidden h-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-900/60 px-2 text-[11px] text-slate-500 transition duration-100 hover:border-slate-600 hover:text-slate-300 sm:flex"
+                  title="Keyboard shortcuts"
+                >
+                  <kbd className="rounded-md border border-slate-700 bg-slate-800 px-1 py-0.5 text-[10px]">?</kbd>
+                </button>
+
+                {/* Refresh */}
+                <button
+                  type="button"
+                  onClick={async () => { setRefreshing(true); await refreshCurrent(); setRefreshing(false); }}
+                  disabled={refreshing}
+                  className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-blue-500/35 bg-blue-600/80 px-2 text-[11px] font-semibold transition duration-100 hover:bg-blue-500 disabled:opacity-60 sm:gap-1.5 sm:px-2.5"
+                >
+                  {refreshing ? (
+                    <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                    </svg>
+                  ) : null}
+                  <span className="hidden sm:inline">{refreshing ? 'Refreshing' : 'Refresh'}</span>
+                  <span className="sm:hidden">↻</span>
+                </button>
+              </div>
             </div>
           </header>
 
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 py-2 sm:px-3 sm:py-3">
+          <section className="min-h-0 flex-1 overflow-hidden sm:px-1 sm:py-1">
             {error ? (
               <div className="rounded-xl border border-red-700/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error.message || String(error)}

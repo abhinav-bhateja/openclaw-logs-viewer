@@ -459,56 +459,75 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* Header: 2 rows */}
-      <div className="shrink-0 border-b border-slate-800/60 px-3 py-2.5">
-        {/* Row 1: session label + live indicator + refresh */}
-        <div className="flex items-center gap-2.5">
-          <h2 className="truncate text-sm font-medium text-slate-200" title={sessionData.session.name}>
+      {/* Header */}
+      <div className="shrink-0 border-b border-slate-800/60 px-3 py-2">
+        {/* Row 1: session label + live + refresh */}
+        <div className="flex items-center gap-2">
+          <h2 className="min-w-0 truncate text-sm font-medium text-slate-200" title={sessionData.session.name}>
             {sessionData.session.label || sessionData.session.sessionId.slice(0, 8)}
           </h2>
-          <span className="text-[11px] text-slate-500">{fmtNum(filteredMessages.length)} messages</span>
+          <span className="hidden text-[11px] text-slate-500 sm:inline">{fmtNum(filteredMessages.length)} msgs</span>
 
           {wsConnected && (
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-400">
-              <span className="relative flex h-2 w-2">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-emerald-400">
+              <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
               </span>
-              Live
+              <span className="hidden sm:inline">Live</span>
             </span>
           )}
           {!wsConnected && sessionData?.session?.name && (
-            <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <span className="relative flex h-2 w-2">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-slate-400">
+              <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-slate-400 opacity-50" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-500" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-slate-500" />
               </span>
-              Connecting...
             </span>
           )}
 
           {sessionData.parseErrors?.length ? (
-            <span className="rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-300">
-              {sessionData.parseErrors.length} parse errors
+            <span className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300">
+              {sessionData.parseErrors.length} err
             </span>
           ) : null}
 
-          <div className="ml-auto">
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="rounded-lg px-2 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60"
-                title="Refresh"
-              >
-                &#8635; Refresh
-              </button>
-            )}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showThinking: !displayOptions?.showThinking })}
+              className={`rounded-full px-2 py-0.5 text-[10px] transition duration-100 sm:text-[11px] sm:px-2.5 ${
+                displayOptions?.showThinking
+                  ? 'bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/30'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              💭
+            </button>
+            <button
+              type="button"
+              onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showToolUse: !displayOptions?.showToolUse })}
+              className={`rounded-full px-2 py-0.5 text-[10px] transition duration-100 sm:text-[11px] sm:px-2.5 ${
+                displayOptions?.showToolUse
+                  ? 'bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/30'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              🔧
+            </button>
+            <a
+              href={`/api/sessions/${sessionData.session?.name}/export?showThinking=${displayOptions?.showThinking ?? false}&showToolUse=${displayOptions?.showToolUse ?? true}`}
+              download
+              className="hidden rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60 sm:inline-block"
+              title="Export as Markdown"
+            >
+              ↓ Export
+            </a>
           </div>
         </div>
 
-        {/* Row 2: stat pills + toggles + export */}
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        {/* Row 2: stat pills — hidden on very small screens, scrollable on medium */}
+        <div className="mt-1 hidden flex-wrap items-center gap-1.5 sm:flex">
           {sessionData.summary?.duration && (
             <StatPill>{sessionData.summary.duration}</StatPill>
           )}
@@ -521,44 +540,11 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
           {sessionData.summary?.models?.length > 0 && (
             <StatPill><span className="truncate max-w-[180px]">{sessionData.summary.models.join(', ')}</span></StatPill>
           )}
-
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showThinking: !displayOptions?.showThinking })}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] transition duration-100 ${
-                displayOptions?.showThinking
-                  ? 'bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/30'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              Thinking
-            </button>
-            <button
-              type="button"
-              onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showToolUse: !displayOptions?.showToolUse })}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] transition duration-100 ${
-                displayOptions?.showToolUse
-                  ? 'bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/30'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              Tools
-            </button>
-            <a
-              href={`/api/sessions/${sessionData.session?.name}/export?showThinking=${displayOptions?.showThinking ?? false}&showToolUse=${displayOptions?.showToolUse ?? true}`}
-              download
-              className="rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60"
-              title="Export as Markdown"
-            >
-              &#8595; Export
-            </a>
-          </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="space-y-4 px-3 py-3 sm:px-4">
           {filteredMessages.length ? (
             filteredMessages.map((message, index) => {

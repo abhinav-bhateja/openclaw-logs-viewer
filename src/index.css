@@ -12,6 +12,13 @@ html,
 body,
 #root {
   height: 100%;
+  overflow: hidden;
+}
+
+/* Mobile: prevent body scroll, force app to handle its own scrolling */
+html {
+  position: fixed;
+  width: 100%;
 }
 
 body {
@@ -23,6 +30,7 @@ body {
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;

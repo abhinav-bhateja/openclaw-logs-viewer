@@ -98,7 +98,7 @@ export default function Sidebar({
       ) : null}
 
       <aside
-        className={`no-scrollbar fixed inset-y-0 left-0 z-40 w-80 border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform md:static md:z-auto md:flex md:h-full md:w-80 md:translate-x-0 md:flex-col md:overflow-hidden ${
+        className={`no-scrollbar fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-xl transition-transform duration-150 md:static md:z-auto md:w-80 md:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
