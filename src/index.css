@@ -15,9 +15,9 @@ body,
   overflow: hidden;
 }
 
-/* Mobile: prevent body scroll, force app to handle its own scrolling */
+/* Mobile: prevent body scroll via overflow hidden (position:fixed breaks touch on iOS) */
 html {
-  position: fixed;
+  overflow: hidden;
   width: 100%;
 }
 

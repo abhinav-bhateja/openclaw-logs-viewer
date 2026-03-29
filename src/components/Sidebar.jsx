@@ -110,6 +110,15 @@ export default function Sidebar({
           <div className="flex items-center gap-2">
             <Logo />
             <h1 className="text-base font-semibold tracking-tight">Logs</h1>
+            {mobileOpen && (
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                className="ml-auto rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200 md:hidden"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
