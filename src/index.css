@@ -94,3 +94,10 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* JSON syntax highlighting */
+.json-key { color: #93c5fd; }
+.json-string { color: #86efac; }
+.json-number { color: #fbbf24; }
+.json-bool { color: #c084fc; }
+.json-null { color: #94a3b8; }
+

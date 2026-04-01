@@ -5,6 +5,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { parseUserMessage } from '@/lib/parseUserMessage';
+import { getToolSummary, looksLikeJson, highlightJson } from '@/lib/toolCallRenderer';
 
 
 function CodeBlock({ content, language }) {
@@ -178,20 +179,47 @@ function Collapsible({ open, children }) {
 
 function ToolResultPreview({ text }) {
   const [expanded, setExpanded] = useState(false);
+  const isJson = looksLikeJson(text);
   const lines = text.split('\n');
   const preview = lines.slice(0, 3).join('\n');
   const hasMore = lines.length > 3;
   const extraCount = lines.length - 3;
 
+  if (isJson) {
+    const highlighted = highlightJson(text);
+    const jsonLines = highlighted.split('\n');
+    const jsonPreview = jsonLines.slice(0, 4).join('\n');
+    const jsonHasMore = jsonLines.length > 4;
+    const jsonExtra = jsonLines.length - 4;
+
+    return (
+      <div className="mt-2 rounded-lg border border-slate-700/60 bg-slate-950/80 p-2">
+        <pre
+          className="whitespace-pre-wrap break-words text-xs font-mono leading-relaxed text-slate-300"
+          dangerouslySetInnerHTML={{ __html: !jsonHasMore || expanded ? highlighted : jsonPreview }}
+        />
+        {jsonHasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-1 text-[10px] text-slate-500 hover:text-slate-300 transition duration-100"
+          >
+            {expanded ? 'collapse' : `+${jsonExtra} more lines`}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (!hasMore) {
-    return <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{text}</pre>;
+    return <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-300 font-mono leading-relaxed">{text}</pre>;
   }
 
   return (
     <div className="mt-2">
-      <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{preview}</pre>
+      <pre className="whitespace-pre-wrap break-words text-xs text-slate-300 font-mono leading-relaxed">{preview}</pre>
       <Collapsible open={expanded}>
-        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300 font-mono">{lines.slice(3).join('\n')}</pre>
+        <pre className="whitespace-pre-wrap break-words text-xs text-slate-300 font-mono leading-relaxed">{lines.slice(3).join('\n')}</pre>
       </Collapsible>
       <button
         type="button"
@@ -314,7 +342,10 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
         {displayOptions?.showToolUse !== false && toolCalls.map((call, index) => {
           const isOpen = toolCallsOpen[index] ?? false;
           const argsText = pretty(call.arguments);
-          const argsPreview = argsText.split('\n').slice(0, 2).join('\n');
+          const summary = getToolSummary(call.name, call.arguments);
+          const isExec = call.name === 'exec';
+          const isProcess = call.name === 'process';
+
           return (
             <div key={`${message.id || message.timestamp}-tool-${index}`} className="mt-2.5 rounded-xl border border-blue-400/15 bg-blue-400/5 p-2.5">
               <button
@@ -323,11 +354,27 @@ function MessageBubble({ message, isLastMessage, displayOptions }) {
                 className="flex w-full items-center gap-1.5 text-xs text-blue-300/80 hover:text-blue-200 transition duration-100"
               >
                 <span className="text-[10px] transition-transform duration-150" style={{ display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>&#9654;</span>
-                <span className="font-medium">{call.name || 'unknown'}</span>
+                <span className="text-sm">{summary.icon}</span>
+                <span className="font-medium">{summary.label}</span>
               </button>
-              {!isOpen && argsPreview && (
-                <pre className="mt-1 text-[11px] text-blue-200/40 font-mono truncate leading-tight">{argsPreview}</pre>
+
+              {/* Enhanced preview based on tool type */}
+              {!isOpen && isExec && summary.detail && (
+                <div className="mt-1.5 rounded-lg border border-slate-700/60 bg-slate-950/80 px-3 py-1.5">
+                  <pre className="text-[11px] font-mono text-green-300/80 leading-relaxed whitespace-pre-wrap break-all">
+                    <span className="text-slate-500 select-none">$ </span>{summary.detail}
+                  </pre>
+                </div>
               )}
+              {!isOpen && isProcess && summary.detail && (
+                <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-slate-600/40 bg-slate-800/60 px-2.5 py-0.5 text-[11px] text-slate-400">
+                  {summary.detail}
+                </div>
+              )}
+              {!isOpen && !isExec && !isProcess && summary.detail && (
+                <pre className="mt-1 text-[11px] text-blue-200/50 font-mono truncate leading-tight">{summary.detail}</pre>
+              )}
+
               <Collapsible open={isOpen}>
                 <CollapsibleText text={argsText} className="mt-2 text-blue-100/80" mono />
               </Collapsible>
@@ -544,7 +591,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="space-y-4 px-3 py-3 sm:px-4">
           {filteredMessages.length ? (
             filteredMessages.map((message, index) => {
