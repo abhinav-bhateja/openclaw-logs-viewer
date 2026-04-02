@@ -10,6 +10,15 @@ import { getToolSummary, looksLikeJson, highlightJson } from '@/lib/toolCallRend
 
 /* ── Helpers ── */
 
+function formatTimeGap(ms) {
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} later`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} later`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days !== 1 ? 's' : ''} later`;
+}
+
 function relativeTime(ts) {
   if (!ts) return '';
   const diff = Date.now() - new Date(ts).getTime();
@@ -458,6 +467,78 @@ function SystemEventDivider({ event }) {
   );
 }
 
+/* ── Time Gap Separator ── */
+
+function TimeGapSeparator({ gap }) {
+  return (
+    <div className="flex items-center gap-3 py-2 px-3">
+      <div className="h-px flex-1 bg-slate-800/40" />
+      <span className="text-[10px] text-slate-600 italic">— {formatTimeGap(gap)} —</span>
+      <div className="h-px flex-1 bg-slate-800/40" />
+    </div>
+  );
+}
+
+/* ── Session Info Panel ── */
+
+function TokenBar({ summary }) {
+  const input = summary?.inputTokens || 0;
+  const output = summary?.outputTokens || 0;
+  const cache = summary?.cacheTokens || summary?.cacheReadTokens || 0;
+  const total = input + output + cache;
+  if (!total) return null;
+  return (
+    <div>
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className="bg-blue-500/70" style={{ width: `${(input / total) * 100}%` }} title={`Input: ${fmtNum(input)}`} />
+        <div className="bg-emerald-500/70" style={{ width: `${(output / total) * 100}%` }} title={`Output: ${fmtNum(output)}`} />
+        <div className="bg-slate-500/70" style={{ width: `${(cache / total) * 100}%` }} title={`Cache: ${fmtNum(cache)}`} />
+      </div>
+      <div className="mt-1 flex gap-3 text-[10px] text-slate-500">
+        <span><span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500/70 mr-1" />Input {fmtNum(input)}</span>
+        <span><span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500/70 mr-1" />Output {fmtNum(output)}</span>
+        {cache > 0 && <span><span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-500/70 mr-1" />Cache {fmtNum(cache)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function SessionInfoPanel({ sessionData }) {
+  const session = sessionData?.session || {};
+  const summary = sessionData?.summary || {};
+  const messages = sessionData?.messages || [];
+  const first = messages.find(m => m.timestamp);
+  const last = [...messages].reverse().find(m => m.timestamp);
+  return (
+    <div className="border-t border-slate-800/60 bg-slate-900/40 px-4 py-3 text-xs text-slate-400 space-y-2">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        {session.channel && (
+          <div><span className="text-slate-600">Channel</span><div className="text-slate-300 truncate">{session.channel}</div></div>
+        )}
+        {session.agentName && (
+          <div><span className="text-slate-600">Agent</span><div className="text-slate-300 truncate">{session.agentName}</div></div>
+        )}
+        {messages.length > 0 && (
+          <div><span className="text-slate-600">Messages</span><div className="text-slate-300">{fmtNum(messages.length)}</div></div>
+        )}
+        {summary.models?.length > 0 && (
+          <div className="col-span-2"><span className="text-slate-600">Models</span><div className="text-slate-300 truncate">{summary.models.join(', ')}</div></div>
+        )}
+        {first && (
+          <div><span className="text-slate-600">Start</span><div className="text-slate-300">{fmtDateFull(first.timestamp)}</div></div>
+        )}
+        {last && last !== first && (
+          <div><span className="text-slate-600">End</span><div className="text-slate-300">{fmtDateFull(last.timestamp)}</div></div>
+        )}
+      </div>
+      {summary.totalTokens > 0 && <TokenBar summary={summary} />}
+      {summary.totalCost > 0 && (
+        <div className="text-[11px] text-slate-400">Cost: <span className="text-slate-200 font-medium">{fmtCost(summary.totalCost)}</span></div>
+      )}
+    </div>
+  );
+}
+
 /* ── Stat Pill ── */
 
 function StatPill({ children }) {
@@ -475,6 +556,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showFloating, setShowFloating] = useState(false);
+  const [showSessionInfo, setShowSessionInfo] = useState(false);
 
   const searchQuery = filter.trim().toLowerCase();
 
@@ -514,7 +596,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
   function jumpToBottom() {
     const node = scrollRef.current;
     if (!node) return;
-    node.scrollTop = node.scrollHeight;
+    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
     setStickToBottom(true);
     setShowFloating(false);
   }
@@ -572,6 +654,11 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
             </span>
           ) : null}
 
+          <button type="button" onClick={() => setShowSessionInfo(v => !v)}
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] transition duration-100 sm:text-[11px] sm:px-2.5 ${showSessionInfo ? 'bg-slate-700/60 text-slate-200' : 'text-slate-500 hover:text-slate-300'}`}
+              title="Session info">
+              ℹ️
+            </button>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <button type="button"
               onClick={() => onDisplayOptionsChange?.({ ...displayOptions, showThinking: !displayOptions?.showThinking })}
@@ -590,7 +677,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
         </div>
 
         {/* Stat pills */}
-        <div className="mt-1 hidden flex-wrap items-center gap-1.5 sm:flex">
+        <div className="mt-1 flex overflow-x-auto items-center gap-1.5 no-scrollbar">
           {sessionData.summary?.duration && <StatPill>{sessionData.summary.duration}</StatPill>}
           {sessionData.summary?.totalTokens > 0 && <StatPill>{fmtNum(sessionData.summary.totalTokens)} tok</StatPill>}
           {sessionData.summary?.totalCost > 0 && <StatPill>{fmtCost(sessionData.summary.totalCost)}</StatPill>}
@@ -599,6 +686,9 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
           )}
         </div>
       </div>
+
+      {/* Session Info Panel */}
+      {showSessionInfo && <SessionInfoPanel sessionData={sessionData} />}
 
       {/* Messages — Slack-style */}
       <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -617,8 +707,15 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                 return eTime > prevTime && eTime <= msgTime;
               });
 
+              const prevMsg = index > 0 ? filteredMessages[index - 1] : null;
+              const timeGap = prevMsg && message.timestamp && prevMsg.timestamp
+                ? new Date(message.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()
+                : 0;
+              const showGap = timeGap > 10 * 60_000;
+
               return (
                 <div key={`${message.id || message.timestamp || 'msg'}-${index}`}>
+                  {showGap && <TimeGapSeparator gap={timeGap} />}
                   {eventsBefore.map((evt, ei) => (
                     <SystemEventDivider key={`evt-${index}-${ei}`} event={evt} />
                   ))}
