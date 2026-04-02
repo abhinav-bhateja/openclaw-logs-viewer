@@ -27,7 +27,7 @@ app.use(express.static(PUBLIC_DIR));
 app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.setHeader('Content-Type', 'application/javascript');
-  res.sendFile(path.join(PUBLIC_DIR, 'sw.js'));
+  res.sendFile(path.join(STATIC_DIR, 'sw.js'));
 });
 
 app.use(express.static(STATIC_DIR));
