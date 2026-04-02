@@ -404,7 +404,7 @@ app.post('/api/sessions/:name/summarize', async (req, res) => {
       return { role: msg.role, text };
     })
     .filter(Boolean)
-    .slice(-50);
+    .slice(-15);
 
   const conversationText = messages.map(m => `${m.role}: ${m.text}`).join('\n\n');
 
@@ -418,7 +418,7 @@ app.post('/api/sessions/:name/summarize', async (req, res) => {
         prompt: `Summarize this AI assistant conversation. Include: what was discussed, key decisions made, tools used, and outcome. Be concise (3-5 sentences).\n\n${conversationText}`,
         stream: false,
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     });
     if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
     const data = await response.json();
