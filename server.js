@@ -19,6 +19,17 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const STATIC_DIR = fs.existsSync(DIST_DIR) ? DIST_DIR : PUBLIC_DIR;
 
 app.use(express.json());
+
+// Always serve public/ so manifest, sw.js, and icons are available in both dev and prod
+app.use(express.static(PUBLIC_DIR));
+
+// Service worker must not be cached by the browser
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(PUBLIC_DIR, 'sw.js'));
+});
+
 app.use(express.static(STATIC_DIR));
 
 function safeJsonParse(line, file, lineNumber) {
