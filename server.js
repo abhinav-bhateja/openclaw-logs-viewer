@@ -515,6 +515,12 @@ function broadcastToAll(payload) {
 const fileOffsets = new Map(); // filePath -> last known size
 
 function startFileWatcher() {
+  // Ensure sessions directory exists before watching
+  if (!fs.existsSync(SESSIONS_DIR)) {
+    console.log('[watcher] Sessions directory not found, creating:', SESSIONS_DIR);
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  }
+
   const watcher = fs.watch(SESSIONS_DIR, { persistent: false }, (eventType, filename) => {
     if (!filename || !filename.endsWith('.jsonl')) return;
     const filePath = path.join(SESSIONS_DIR, filename);
