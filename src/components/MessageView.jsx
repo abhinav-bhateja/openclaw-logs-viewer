@@ -7,7 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { parseUserMessage } from '@/lib/parseUserMessage';
-import { getToolSummary, looksLikeJson, highlightJson } from '@/lib/toolCallRenderer';
+import { getToolSummary, looksLikeJson, highlightJson, formatToolArgs, formatToolResult } from '@/lib/toolCallRenderer';
 
 /* ── Helpers ── */
 
