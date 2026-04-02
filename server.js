@@ -56,9 +56,13 @@ function extractLabelFromText(text) {
   // Cron job: [cron:id job-name]
   const cronMatch = text.match(/^\[cron:[^\s]+ ([^\]]+)\]/);
   if (cronMatch) return { label: `⏰ ${cronMatch[1]}`, channel: 'cron' };
+  // Cron prefix: "cron: job-name"
+  const cronPrefixMatch = text.match(/^cron:\s*(.+)/m);
+  if (cronPrefixMatch) return { label: `⏰ ${cronPrefixMatch[1].trim()}`, channel: 'cron' };
   // New/reset session (no channel)
   if (/new session was started via \/new|\/reset/.test(text.slice(0, 300))) return { label: 'Main', channel: 'direct' };
-  // Extract conversation_label from JSON block
+
+  // --- Priority 1: conversation_label ---
   const labelMatch = text.match(/"conversation_label"\s*:\s*"([^"]+)"/);
   if (labelMatch) {
     const label = labelMatch[1];
@@ -68,6 +72,36 @@ function extractLabelFromText(text) {
     if (label.startsWith('channel:')) return { label: 'Discord', channel: 'discord' };
     return { label, channel: 'other' };
   }
+
+  // --- Priority 2: group_subject JSON field ---
+  const groupSubjectMatch = text.match(/"group_subject"\s*:\s*"([^"]+)"/);
+  if (groupSubjectMatch) return { label: groupSubjectMatch[1], channel: 'discord' };
+
+  // --- Priority 3: Discord channel topic ---
+  const topicMatch = text.match(/Discord channel topic:\n([^\n]+)/);
+  if (topicMatch) {
+    const topicLine = topicMatch[1].trim();
+    const dashIdx = topicLine.indexOf(' — ');
+    const label = dashIdx !== -1 ? topicLine.slice(0, dashIdx).trim() : topicLine.slice(0, 40).trim();
+    return { label, channel: 'discord' };
+  }
+
+  // --- Priority 4: group_channel JSON field ---
+  const groupChannelMatch = text.match(/"group_channel"\s*:\s*"(#[^"]+)"/);
+  if (groupChannelMatch) return { label: groupChannelMatch[1], channel: 'discord' };
+
+  // --- Priority 5: chat_id fallback ---
+  const chatIdMatch = text.match(/"chat_id"\s*:\s*"(channel|dm):([^"]+)"/);
+  if (chatIdMatch) {
+    const baseLabel = chatIdMatch[1] === 'dm' ? 'DM' : 'Discord';
+    // Try to enrich with sender label
+    const senderLabelMatch = text.match(/"label"\s*:\s*"([^"]+)"/);
+    if (senderLabelMatch && (baseLabel === 'Discord' || baseLabel === 'DM')) {
+      return { label: `${baseLabel} (${senderLabelMatch[1]})`, channel: 'discord' };
+    }
+    return { label: baseLabel, channel: 'discord' };
+  }
+
   // System message (compaction, audit) — still main session
   if (/Post-Compaction|Compaction failed|compaction/i.test(text.slice(0, 300))) return { label: 'Main', channel: 'direct' };
   return null; // will fall back to date-based label
@@ -521,6 +555,8 @@ function startFileWatcher() {
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   }
 
+  labelCache.clear();
+
   const watcher = fs.watch(SESSIONS_DIR, { persistent: false }, (eventType, filename) => {
     if (!filename || !filename.endsWith('.jsonl')) return;
     const filePath = path.join(SESSIONS_DIR, filename);
@@ -530,6 +566,12 @@ function startFileWatcher() {
     if (watcher[key]) return;
     watcher[key] = true;
     setTimeout(() => { watcher[key] = false; }, 100);
+
+    // Invalidate label cache for this file so it gets re-extracted on next request
+    const filePath2 = path.join(SESSIONS_DIR, filename);
+    for (const key2 of labelCache.keys()) {
+      if (key2.startsWith(filePath2 + ':')) labelCache.delete(key2);
+    }
 
     // Read new content since last offset
     fsp.stat(filePath).then((stats) => {
