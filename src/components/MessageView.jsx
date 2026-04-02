@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import Skeleton from '@/components/Skeleton';
 import { useTicker } from '@/hooks/useTicker';
 import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
