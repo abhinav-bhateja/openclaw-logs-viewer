@@ -738,7 +738,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
                 displayOptions?.showToolUse ? 'bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/30' : 'text-slate-500 hover:text-slate-300'
               }`}>🔧</button>
               <button type="button" onClick={handleSummarize}
-              className="hidden rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60 sm:inline-flex items-center gap-1"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60"
               title="AI summary" disabled={summaryState.loading}>
               {summaryState.loading
                 ? <span className="inline-block h-3 w-3 animate-spin rounded-full border border-slate-500 border-t-transparent" />
