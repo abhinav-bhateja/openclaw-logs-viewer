@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import Skeleton from '@/components/Skeleton';
 import { useTicker } from '@/hooks/useTicker';
 import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
@@ -360,9 +361,11 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
                 <span>💭 Thinking</span>
                 <span className="text-[10px] text-amber-300/50">{fmtNum(block.length)} chars</span>
               </button>
-              <Collapsible open={isOpen}>
-                <CollapsibleText text={block} className="mt-2 text-amber-100/90" />
-              </Collapsible>
+              {isOpen && (
+                <Collapsible open={isOpen}>
+                  <CollapsibleText text={block} className="mt-2 text-amber-100/90" />
+                </Collapsible>
+              )}
             </div>
           );
         })}
@@ -397,9 +400,11 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
               {!isOpen && !isExec && !isProcess && summary.detail && (
                 <pre className="mt-1 text-[11px] text-blue-200/50 font-mono truncate leading-tight">{summary.detail}</pre>
               )}
-              <Collapsible open={isOpen}>
-                <CollapsibleText text={argsText} className="mt-2 text-blue-100/80" mono />
-              </Collapsible>
+              {isOpen && (
+                <Collapsible open={isOpen}>
+                  <CollapsibleText text={argsText} className="mt-2 text-blue-100/80" mono />
+                </Collapsible>
+              )}
             </div>
           );
         })}
@@ -407,6 +412,8 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
     </div>
   );
 }
+
+const MemoSlackMessage = memo(SlackMessage);
 
 /* ── Streaming Indicator ── */
 
@@ -469,11 +476,11 @@ function SystemEventDivider({ event }) {
 
 /* ── Time Gap Separator ── */
 
-function TimeGapSeparator({ gap }) {
+function TimeGapSeparator({ gap, label }) {
   return (
     <div className="flex items-center gap-3 py-2 px-3">
       <div className="h-px flex-1 bg-slate-800/40" />
-      <span className="text-[10px] text-slate-600 italic">— {formatTimeGap(gap)} —</span>
+      <span className="text-[10px] text-slate-600 italic">{label ?? `— ${formatTimeGap(gap)} —`}</span>
       <div className="h-px flex-1 bg-slate-800/40" />
     </div>
   );
@@ -560,28 +567,64 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
   const searchQuery = filter.trim().toLowerCase();
 
+  const preparedRows = useMemo(() => {
+    const source = sessionData?.messages || [];
+    const msgs = searchQuery
+      ? source.filter(m => JSON.stringify(m).toLowerCase().includes(searchQuery))
+      : source;
+    const evts = sessionData?.events || [];
+    const rows = [];
+    msgs.forEach((message, index) => {
+      const prev = index > 0 ? msgs[index - 1] : null;
+      const isGrouped = prev
+        && prev.role === message.role
+        && (new Date(message.timestamp) - new Date(prev.timestamp)) < 120_000;
+      const msgTime = new Date(message.timestamp).getTime();
+      const prevTime = index > 0 ? new Date(msgs[index - 1].timestamp).getTime() : 0;
+      const timeGap = prev && message.timestamp && prev.timestamp ? msgTime - prevTime : 0;
+      if (timeGap > 10 * 60_000) {
+        rows.push({ type: 'gap', label: `— ${formatTimeGap(timeGap)} —` });
+      }
+      evts
+        .filter(e => { const t = new Date(e.timestamp).getTime(); return t > prevTime && t <= msgTime; })
+        .forEach(evt => rows.push({ type: 'event', event: evt }));
+      rows.push({
+        type: 'message',
+        key: `${message.id || message.timestamp || 'msg'}-${index}`,
+        props: { message, isGrouped, isLastMessage: !isStreaming && index === msgs.length - 1, displayOptions, searchQuery },
+      });
+    });
+    if (isStreaming) rows.push({ type: 'streaming' });
+    return rows;
+  }, [searchQuery, sessionData?.messages, sessionData?.events, displayOptions, isStreaming, streamingText]);
+
   const filteredMessages = useMemo(() => {
     const source = sessionData?.messages || [];
     if (!searchQuery) return source;
     return source.filter(message => JSON.stringify(message).toLowerCase().includes(searchQuery));
   }, [searchQuery, sessionData?.messages]);
 
+  const virtualizer = useVirtualizer({
+    count: preparedRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 80,
+    overscan: 10,
+  });
+
   const matchCount = searchQuery ? filteredMessages.length : 0;
-  const events = sessionData?.events || [];
   const messageCount = sessionData?.messages?.length || 0;
   const eventCount = sessionData?.events?.length || 0;
 
   useEffect(() => {
-    const node = scrollRef.current;
-    if (!node) return;
     setStickToBottom(true);
-    requestAnimationFrame(() => { node.scrollTop = node.scrollHeight; });
+    if (preparedRows.length > 0) {
+      requestAnimationFrame(() => virtualizer.scrollToIndex(preparedRows.length - 1, { align: 'end' }));
+    }
   }, [sessionData?.session?.name]);
 
   useEffect(() => {
-    const node = scrollRef.current;
-    if (!node || !stickToBottom) return;
-    requestAnimationFrame(() => { node.scrollTop = node.scrollHeight; });
+    if (!stickToBottom || preparedRows.length === 0) return;
+    requestAnimationFrame(() => virtualizer.scrollToIndex(preparedRows.length - 1, { align: 'end' }));
   }, [stickToBottom, messageCount, eventCount, streamingText, isStreaming]);
 
   const onScroll = useCallback(() => {
@@ -594,9 +637,9 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
   }, []);
 
   function jumpToBottom() {
-    const node = scrollRef.current;
-    if (!node) return;
-    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    if (preparedRows.length > 0) {
+      virtualizer.scrollToIndex(preparedRows.length - 1, { align: 'end' });
+    }
     setStickToBottom(true);
     setShowFloating(false);
   }
@@ -690,52 +733,33 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
       {/* Session Info Panel */}
       {showSessionInfo && <SessionInfoPanel sessionData={sessionData} />}
 
-      {/* Messages — Slack-style */}
+      {/* Messages — virtualized */}
       <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="py-3">
-          {filteredMessages.length ? (
-            filteredMessages.map((message, index) => {
-              const prev = index > 0 ? filteredMessages[index - 1] : null;
-              const isGrouped = prev
-                && prev.role === message.role
-                && (new Date(message.timestamp) - new Date(prev.timestamp)) < 120_000; // 2 min grouping
-
-              const msgTime = new Date(message.timestamp).getTime();
-              const eventsBefore = events.filter(e => {
-                const eTime = new Date(e.timestamp).getTime();
-                const prevTime = index > 0 ? new Date(filteredMessages[index - 1].timestamp).getTime() : 0;
-                return eTime > prevTime && eTime <= msgTime;
-              });
-
-              const prevMsg = index > 0 ? filteredMessages[index - 1] : null;
-              const timeGap = prevMsg && message.timestamp && prevMsg.timestamp
-                ? new Date(message.timestamp).getTime() - new Date(prevMsg.timestamp).getTime()
-                : 0;
-              const showGap = timeGap > 10 * 60_000;
-
+        {preparedRows.length === 0 ? (
+          <div className="px-4 py-3 text-sm text-slate-500">
+            {searchQuery ? `No messages matching "${filter}"` : 'No messages'}
+          </div>
+        ) : (
+          <div style={{ height: virtualizer.getTotalSize() + 'px', width: '100%', position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(virtualRow => {
+              const row = preparedRows[virtualRow.index];
               return (
-                <div key={`${message.id || message.timestamp || 'msg'}-${index}`}>
-                  {showGap && <TimeGapSeparator gap={timeGap} />}
-                  {eventsBefore.map((evt, ei) => (
-                    <SystemEventDivider key={`evt-${index}-${ei}`} event={evt} />
-                  ))}
-                  <SlackMessage
-                    message={message}
-                    isGrouped={isGrouped}
-                    isLastMessage={!isStreaming && index === filteredMessages.length - 1}
-                    displayOptions={displayOptions}
-                    searchQuery={searchQuery}
-                  />
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  {row.type === 'gap' && <TimeGapSeparator label={row.label} />}
+                  {row.type === 'event' && <SystemEventDivider event={row.event} />}
+                  {row.type === 'message' && <MemoSlackMessage key={row.key} {...row.props} />}
+                  {row.type === 'streaming' && <StreamingBubble text={streamingText} />}
+
                 </div>
               );
-            })
-          ) : (
-            <div className="px-4 text-sm text-slate-500">
-              {searchQuery ? `No messages matching "${filter}"` : 'No messages'}
-            </div>
-          )}
-          {isStreaming && <StreamingBubble text={streamingText} />}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       {/* Floating buttons */}
