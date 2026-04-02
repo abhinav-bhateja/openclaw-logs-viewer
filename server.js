@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const fs = require('fs');
 const fsp = fs.promises;
 const http = require('http');
@@ -18,6 +19,7 @@ const DIST_DIR = path.join(__dirname, 'dist');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const STATIC_DIR = fs.existsSync(DIST_DIR) ? DIST_DIR : PUBLIC_DIR;
 
+app.use(compression());
 app.use(express.json());
 
 // Always serve public/ so manifest, sw.js, and icons are available in both dev and prod
@@ -61,6 +63,8 @@ async function parseJsonlFile(filePath) {
 const labelCache = new Map();
 // In-memory summary cache: "name:mtime" -> summary string
 const summaryCache = new Map();
+// Session list + individual session cache
+let sessionCache = { list: null, lastBuild: 0, sessions: new Map() };
 
 function extractLabelFromText(text) {
   if (!text) return null;
@@ -203,6 +207,34 @@ async function countMessages(filePath) {
   }
 }
 
+async function buildSessionList() {
+  const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
+  const sessionFiles = entries
+    .filter((e) => e.isFile() && e.name.endsWith('.jsonl'))
+    .map((e) => e.name);
+
+  const withMeta = await Promise.all(
+    sessionFiles.map(async (name) => {
+      const fullPath = path.join(SESSIONS_DIR, name);
+      const stats = await fsp.stat(fullPath);
+      const meta = getSessionMeta(name, stats);
+      const [labelResult, msgCount] = await Promise.all([
+        getSessionLabel(fullPath, stats.mtime.getTime()),
+        countMessages(fullPath),
+      ]);
+      meta.label = labelResult ? labelResult.label : dateLabel(stats.mtime);
+      meta.channel = labelResult ? labelResult.channel : 'other';
+      meta.messageCount = msgCount;
+      return meta;
+    })
+  );
+
+  const sorted = withMeta.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+  sessionCache.list = sorted;
+  sessionCache.lastBuild = Date.now();
+  return sorted;
+}
+
 async function listSessionFiles() {
   const entries = await fsp.readdir(SESSIONS_DIR, { withFileTypes: true });
   const sessionFiles = entries
@@ -227,6 +259,21 @@ async function listSessionFiles() {
   );
 
   return withMeta.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+}
+
+async function cacheSessionFile(name) {
+  try {
+    const filePath = path.join(SESSIONS_DIR, name);
+    const stats = await fsp.stat(filePath);
+    const mtime = stats.mtime.getTime();
+    const cached = sessionCache.sessions.get(name);
+    if (cached && cached.mtime === mtime) return cached.data;
+    const data = await parseSessionFileByName(name);
+    sessionCache.sessions.set(name, { mtime, data });
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 async function parseSessionFileByName(fileName) {
@@ -292,7 +339,11 @@ async function parseSessionFileByName(fileName) {
 
 app.get('/api/sessions', async (req, res) => {
   try {
-    const sessions = await listSessionFiles();
+    const now = Date.now();
+    if (sessionCache.list && (now - sessionCache.lastBuild) < 10000) {
+      return res.json({ sessions: sessionCache.list });
+    }
+    const sessions = await buildSessionList();
     res.json({ sessions });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -306,16 +357,26 @@ app.get('/api/sessions/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid session id' });
     }
 
-    const data = await parseSessionFileByName(id);
-    // Enrich with label/channel from the list cache
     const filePath = path.join(SESSIONS_DIR, id);
+    let data;
     try {
       const stats = await fsp.stat(filePath);
-      const labelResult = await getSessionLabel(filePath, stats.mtime.getTime());
+      const mtime = stats.mtime.getTime();
+      const cached = sessionCache.sessions.get(id);
+      if (cached && cached.mtime === mtime) {
+        data = cached.data;
+      } else {
+        data = await parseSessionFileByName(id);
+        sessionCache.sessions.set(id, { mtime, data });
+      }
+      // Enrich with label/channel
+      const labelResult = await getSessionLabel(filePath, mtime);
       data.meta = data.meta || {};
       data.meta.label = labelResult ? labelResult.label : dateLabel(stats.mtime);
       data.meta.channel = labelResult ? labelResult.channel : 'other';
-    } catch {}
+    } catch (err) {
+      if (!data) throw err;
+    }
     res.json(data);
   } catch (error) {
     const status = error.status || 500;
@@ -644,11 +705,13 @@ function startFileWatcher() {
     watcher[key] = true;
     setTimeout(() => { watcher[key] = false; }, 100);
 
-    // Invalidate label cache for this file so it gets re-extracted on next request
+    // Invalidate caches for this file
     const filePath2 = path.join(SESSIONS_DIR, filename);
     for (const key2 of labelCache.keys()) {
       if (key2.startsWith(filePath2 + ':')) labelCache.delete(key2);
     }
+    sessionCache.list = null;
+    sessionCache.sessions.delete(filename);
 
     // Read new content since last offset
     fsp.stat(filePath).then((stats) => {
