@@ -345,7 +345,7 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
         )}
 
         {/* Message body */}
-        {text && <MarkdownMessage text={text} className="text-slate-200" searchQuery={searchQuery} />}
+        {text && role !== 'toolResult' && <MarkdownMessage text={text} className="text-slate-200" searchQuery={searchQuery} />}
 
         {/* Tool result */}
         {toolResultText && <ToolResultPreview text={toolResultText} />}
@@ -379,28 +379,28 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
           const isProcess = call.name === 'process';
           return (
             <div key={`tool-${index}`} className="mt-2 rounded-lg border border-blue-400/15 bg-blue-400/5 p-2">
-              <button type="button" onClick={() => toggleToolCall(index)}
-                className="flex w-full items-center gap-1.5 text-xs text-blue-300/80 hover:text-blue-200 transition duration-100">
-                <span className="text-[10px] transition-transform duration-150" style={{ display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+              <button type="button" onClick={isExec ? undefined : () => toggleToolCall(index)}
+                className={`flex w-full items-center gap-1.5 text-xs text-blue-300/80 transition duration-100 ${isExec ? '' : 'hover:text-blue-200'}`}>
+                {!isExec && <span className="text-[10px] transition-transform duration-150" style={{ display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>}
                 <span className="text-sm">{summary.icon}</span>
                 <span className="font-medium">{summary.label}</span>
               </button>
-              {!isOpen && isExec && summary.detail && (
+              {isExec && summary.detail && (
                 <div className="mt-1.5 rounded-md border border-slate-700/60 bg-slate-950/80 px-3 py-1.5">
                   <pre className="text-[11px] font-mono text-green-300/80 leading-relaxed whitespace-pre-wrap break-all">
                     <span className="text-slate-500 select-none">$ </span>{summary.detail}
                   </pre>
                 </div>
               )}
-              {!isOpen && isProcess && summary.detail && (
+              {!isExec && !isOpen && isProcess && summary.detail && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-slate-600/40 bg-slate-800/60 px-2.5 py-0.5 text-[11px] text-slate-400">
                   {summary.detail}
                 </div>
               )}
-              {!isOpen && !isExec && !isProcess && summary.detail && (
+              {!isExec && !isOpen && !isProcess && summary.detail && (
                 <pre className="mt-1 text-[11px] text-blue-200/50 font-mono truncate leading-tight">{summary.detail}</pre>
               )}
-              {isOpen && (
+              {!isExec && isOpen && (
                 <Collapsible open={isOpen}>
                   <CollapsibleText text={argsText} className="mt-2 text-blue-100/80" mono />
                 </Collapsible>
