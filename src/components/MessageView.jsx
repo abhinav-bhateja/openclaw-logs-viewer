@@ -373,7 +373,7 @@ function SlackMessage({ message, isGrouped, isLastMessage, displayOptions, searc
         {/* Tool calls */}
         {displayOptions?.showToolUse !== false && toolCalls.map((call, index) => {
           const isOpen = toolCallsOpen[index] ?? false;
-          const argsText = pretty(call.arguments);
+          const argsText = formatToolArgs(call.name, call.arguments);
           const summary = getToolSummary(call.name, call.arguments);
           const isExec = call.name === 'exec';
           const isProcess = call.name === 'process';

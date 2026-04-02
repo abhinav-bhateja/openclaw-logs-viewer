@@ -82,6 +82,48 @@ export function getToolSummary(name, args) {
 }
 
 /**
+ * Format tool arguments into a concise human-readable string
+ */
+export function formatToolArgs(name, args) {
+  const a = parseArgs(args);
+  switch (name) {
+    case 'exec': return a.command || JSON.stringify(a, null, 2);
+    case 'process': {
+      if (a.action === 'poll') return 'Polling ' + (a.sessionId || '?') + ' for ' + Math.round((a.timeout || 0) / 1000) + 's';
+      if (a.action === 'log') return 'Logs from ' + (a.sessionId || '?') + ' (last ' + (a.limit || '?') + ')';
+      if (a.action === 'kill') return 'Kill ' + (a.sessionId || '?');
+      return (a.action || '?') + ' ' + (a.sessionId || '');
+    }
+    case 'read': return a.path || a.file || a.filePath || a.file_path || JSON.stringify(a, null, 2);
+    case 'write': return (a.path || a.file || a.filePath || a.file_path || '?') + ' (' + ((a.content || '').length) + ' chars)';
+    case 'edit': return a.path || a.file || a.filePath || a.file_path || JSON.stringify(a, null, 2);
+    case 'web_search': return a.query || JSON.stringify(a, null, 2);
+    case 'web_fetch': return a.url || JSON.stringify(a, null, 2);
+    case 'memory_search': return a.query || JSON.stringify(a, null, 2);
+    default: return JSON.stringify(a, null, 2);
+  }
+}
+
+/**
+ * Normalize tool result text into a badge + optional body
+ */
+export function formatToolResult(toolName, text) {
+  if (!text) return { badge: null, body: text };
+  if (toolName === 'process' || text.includes('Process exited')) {
+    if (text.includes('code 0')) return { badge: '✅ Completed', badgeColor: 'green', body: text };
+    if (text.includes('still running') || text.includes('Still running')) return { badge: '⏳ Running', badgeColor: 'yellow', body: text };
+    if (text.includes('Termination')) return { badge: '🛑 Killed', badgeColor: 'red', body: text };
+  }
+  if (text.includes('Successfully wrote') || text.includes('Successfully replaced')) {
+    return { badge: '✅ ' + text.split('\n')[0], badgeColor: 'green', body: null };
+  }
+  if (text.includes('Could not find') || text.includes('error')) {
+    return { badge: '❌ ' + text.split('\n')[0].slice(0, 80), badgeColor: 'red', body: text };
+  }
+  return { badge: null, body: text };
+}
+
+/**
  * Check if a string looks like JSON
  */
 export function looksLikeJson(text) {
