@@ -564,6 +564,30 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
   const [stickToBottom, setStickToBottom] = useState(true);
   const [showFloating, setShowFloating] = useState(false);
   const [showSessionInfo, setShowSessionInfo] = useState(false);
+  const [summaryState, setSummaryState] = useState({ text: null, loading: false, error: null, open: false });
+  const summaryCache = useRef({});
+
+  async function handleSummarize() {
+    const name = sessionData?.session?.name;
+    if (!name) return;
+    if (summaryCache.current[name]) {
+      setSummaryState(s => ({ ...s, text: summaryCache.current[name], open: true }));
+      return;
+    }
+    setSummaryState({ text: null, loading: true, error: null, open: true });
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(name)}/summarize`, { method: 'POST' });
+      const data = await res.json();
+      if (data.summary) {
+        summaryCache.current[name] = data.summary;
+        setSummaryState({ text: data.summary, loading: false, error: null, open: true });
+      } else {
+        setSummaryState({ text: null, loading: false, error: data.error || 'No summary returned', open: true });
+      }
+    } catch {
+      setSummaryState({ text: null, loading: false, error: 'Request failed', open: true });
+    }
+  }
 
   const searchQuery = filter.trim().toLowerCase();
 
@@ -713,6 +737,13 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
               className={`rounded-full px-2 py-0.5 text-[10px] transition duration-100 sm:text-[11px] sm:px-2.5 ${
                 displayOptions?.showToolUse ? 'bg-blue-400/15 text-blue-300 ring-1 ring-blue-400/30' : 'text-slate-500 hover:text-slate-300'
               }`}>🔧</button>
+              <button type="button" onClick={handleSummarize}
+              className="hidden rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60 sm:inline-flex items-center gap-1"
+              title="AI summary" disabled={summaryState.loading}>
+              {summaryState.loading
+                ? <span className="inline-block h-3 w-3 animate-spin rounded-full border border-slate-500 border-t-transparent" />
+                : '✨'} Summarize
+            </button>
             <a href={`/api/sessions/${sessionData.session?.name}/export?showThinking=${displayOptions?.showThinking ?? false}&showToolUse=${displayOptions?.showToolUse ?? true}`}
               download className="hidden rounded-full px-2.5 py-0.5 text-[11px] text-slate-500 transition duration-100 hover:text-slate-300 hover:bg-slate-800/60 sm:inline-block"
               title="Export as Markdown">↓ Export</a>
@@ -732,6 +763,29 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
       {/* Session Info Panel */}
       {showSessionInfo && <SessionInfoPanel sessionData={sessionData} />}
+
+      {/* AI Summary Panel */}
+      {summaryState.open && (
+        <div className="shrink-0 border-b border-indigo-500/20 bg-indigo-500/5 px-4 py-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-medium text-indigo-300">✨ AI Summary</span>
+            <button type="button" onClick={() => setSummaryState(s => ({ ...s, open: false }))}
+              className="text-[11px] text-slate-500 hover:text-slate-300 transition duration-100">✕</button>
+          </div>
+          {summaryState.loading && (
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border border-indigo-400 border-t-transparent" />
+              Generating summary…
+            </div>
+          )}
+          {summaryState.error && !summaryState.loading && (
+            <p className="text-xs text-red-400">{summaryState.error}</p>
+          )}
+          {summaryState.text && !summaryState.loading && (
+            <p className="text-xs leading-relaxed text-slate-300 whitespace-pre-wrap">{summaryState.text}</p>
+          )}
+        </div>
+      )}
 
       {/* Messages — virtualized */}
       <div ref={scrollRef} onScroll={onScroll} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>

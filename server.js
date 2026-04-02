@@ -59,6 +59,8 @@ async function parseJsonlFile(filePath) {
 }
 // In-memory label cache: "filename:mtime" -> label string
 const labelCache = new Map();
+// In-memory summary cache: "name:mtime" -> summary string
+const summaryCache = new Map();
 
 function extractLabelFromText(text) {
   if (!text) return null;
@@ -362,6 +364,70 @@ app.get('/api/sessions/:id/export', async (req, res) => {
     res.send(header + md);
   } catch (err) {
     res.status(404).json({ error: 'Session not found' });
+  }
+});
+
+app.post('/api/sessions/:name/summarize', async (req, res) => {
+  const name = req.params.name;
+  if (name.includes('/') || name.includes('..')) {
+    return res.status(400).json({ error: 'Invalid session name' });
+  }
+
+  const filePath = path.join(SESSIONS_DIR, name);
+  let mtime;
+  try {
+    const stats = await fsp.stat(filePath);
+    mtime = stats.mtime.getTime();
+  } catch {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  const cacheKey = `${name}:${mtime}`;
+  if (summaryCache.has(cacheKey)) {
+    return res.json({ summary: summaryCache.get(cacheKey) });
+  }
+
+  let records;
+  try {
+    records = await parseJsonlFile(filePath);
+  } catch {
+    return res.status(500).json({ error: 'Failed to read session' });
+  }
+
+  const messages = records
+    .filter(r => r && r.type === 'message' && r.message)
+    .map(r => {
+      const msg = r.message;
+      const blocks = Array.isArray(msg.content) ? msg.content : [];
+      const text = blocks.filter(b => b.type === 'text').map(b => b.text).join(' ').trim();
+      if (!text) return null;
+      return { role: msg.role, text };
+    })
+    .filter(Boolean)
+    .slice(-50);
+
+  const conversationText = messages.map(m => `${m.role}: ${m.text}`).join('\n\n');
+
+  try {
+    const response = await fetch('http://ollama:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'qwen2.5:3b',
+        system: 'You are a log analyzer. Summarize conversations concisely.',
+        prompt: `Summarize this AI assistant conversation. Include: what was discussed, key decisions made, tools used, and outcome. Be concise (3-5 sentences).\n\n${conversationText}`,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
+    const data = await response.json();
+    const summary = data.response?.trim() || '';
+    summaryCache.set(cacheKey, summary);
+    res.json({ summary });
+  } catch (err) {
+    console.error('[summarize] Ollama error:', err.message);
+    res.json({ summary: null, error: 'LLM unavailable' });
   }
 });
 
