@@ -277,6 +277,11 @@ export default function App() {
         e.preventDefault();
         setShortcutsOpen((v) => !v);
       }
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        filterInputRef.current?.focus();
+        filterInputRef.current?.select();
+      }
     }
     window.addEventListener('keydown', onSlash);
 

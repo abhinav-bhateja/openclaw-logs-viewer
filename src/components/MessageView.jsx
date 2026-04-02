@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import Skeleton from '@/components/Skeleton';
 import { useTicker } from '@/hooks/useTicker';
 import { fmtCost, fmtDate, fmtDateFull, fmtNum, pretty, splitMessageContent } from '@/lib/format';
 import Markdown from 'react-markdown';
@@ -20,6 +21,17 @@ function relativeTime(ts) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
+}
+
+function applyHighlight(children, query) {
+  if (!query) return children;
+  if (typeof children === 'string') return highlightText(children, query);
+  if (Array.isArray(children)) {
+    return children.map((child, i) =>
+      typeof child === 'string' ? <span key={i}>{highlightText(child, query)}</span> : child
+    );
+  }
+  return children;
 }
 
 function highlightText(text, query) {
@@ -93,7 +105,7 @@ function MarkdownMessage({ text, className = '', searchQuery = '' }) {
           h1({ children }) { return <h1 className="text-lg font-semibold text-slate-100 mt-3 mb-1">{children}</h1>; },
           h2({ children }) { return <h2 className="text-base font-semibold text-slate-100 mt-3 mb-1">{children}</h2>; },
           h3({ children }) { return <h3 className="text-sm font-semibold text-slate-100 mt-2 mb-1">{children}</h3>; },
-          p({ children }) { return <p className="whitespace-pre-wrap break-words my-1">{children}</p>; },
+          p({ children }) { return <p className="whitespace-pre-wrap break-words my-1">{applyHighlight(children, searchQuery)}</p>; },
         }}>
         {text}
       </Markdown>
@@ -458,7 +470,7 @@ function StatPill({ children }) {
 
 /* ── Main Component ── */
 
-export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming, displayOptions, onDisplayOptionsChange }) {
+export default function MessageView({ sessionData, filter, onRefresh, wsConnected, wsReconnecting, streamingText, isStreaming, displayOptions, onDisplayOptionsChange, isLoading = false }) {
   useTicker(30_000);
   const scrollRef = useRef(null);
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -507,10 +519,18 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
     setShowFloating(false);
   }
 
+  if (isLoading && !sessionData) {
+    return <div className="flex min-h-0 flex-1 flex-col p-3"><Skeleton /></div>;
+  }
+
   if (!sessionData) {
     return (
-      <div className="grid flex-1 place-items-center text-sm text-slate-500">
-        Pick a session from the sidebar
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <p className="text-sm font-medium text-slate-400">No session selected</p>
+        <p className="text-xs text-slate-600">Pick a session from the sidebar to start reading</p>
       </div>
     );
   }
@@ -527,7 +547,7 @@ export default function MessageView({ sessionData, filter, onRefresh, wsConnecte
 
           {searchQuery && (
             <span className="rounded-full bg-yellow-400/15 px-2 py-0.5 text-[10px] text-yellow-300 ring-1 ring-yellow-400/30">
-              {matchCount} match{matchCount !== 1 ? 'es' : ''}
+              {matchCount} of {messageCount}
             </span>
           )}
 
